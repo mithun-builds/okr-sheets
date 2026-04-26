@@ -193,8 +193,8 @@
               <div class="flex flex-col items-end gap-1 shrink-0">
                 <span class="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
                   :class="statusColor(obj.status)" x-text="obj.status?.replace('-', ' ')"></span>
-                <span x-show="meceWarning(obj)"
-                  class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠ KRs needed</span>
+                <span x-show="objectiveKRs(obj).length === 0"
+                  class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠ No KRs yet</span>
               </div>
             </div>
 
@@ -274,14 +274,6 @@
                       :class="isOverdue(selectedObjective.eta) ? 'text-rose-500 font-medium' : 'text-slate-400'"
                       x-text="(isOverdue(selectedObjective.eta) ? 'Overdue · ' : 'Due ') + formatDate(selectedObjective.eta)"></span>
                   </template>
-                  <template x-if="selectedObjective.parent_objective_id">
-                    <span class="text-xs text-slate-400">Aligned to:
-                      <button @click="openObjective(selectedObjective.parent_objective_id)"
-                        class="font-medium text-brand-600 hover:underline"
-                        x-text="objectives.find(o => o.id === selectedObjective.parent_objective_id)?.title || 'Parent'">
-                      </button>
-                    </span>
-                  </template>
                 </div>
 
                 <!-- Description -->
@@ -310,10 +302,6 @@
           <div class="mb-2 flex items-center justify-between">
             <div>
               <h2 class="font-semibold text-slate-700">Key Results</h2>
-              <p x-show="objectiveKRs(selectedObjective).length <= 1"
-                class="text-xs text-amber-600 mt-0.5">
-                ⚠ Coverage check — do these KRs, taken together, fully prove the objective is met?
-              </p>
             </div>
             <button @click="openNewKRModal(selectedObjective.id)"
               class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition"
@@ -485,17 +473,6 @@
               </div>
             </div>
 
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Parent objective (optional)</label>
-              <select x-model="modal.data.parent_objective_id"
-                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                <option value="">— None —</option>
-                <template x-for="p in parentCandidates(null)" :key="p.id">
-                  <option :value="p.id" x-text="p.title"></option>
-                </template>
-              </select>
-            </div>
-
             <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
 
             <div class="flex justify-end gap-3 pt-1">
@@ -637,17 +614,6 @@
                   <option value="done">Done</option>
                 </select>
               </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Parent objective (optional)</label>
-              <select x-model="modal.data.parent_objective_id"
-                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                <option value="">— None —</option>
-                <template x-for="p in parentCandidates(modal.data._obj?.id)" :key="p.id">
-                  <option :value="p.id" x-text="p.title"></option>
-                </template>
-              </select>
             </div>
 
             <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>

@@ -29,7 +29,7 @@ function nowISO() {
 
 // Column definitions (must mirror Code.gs COLS — used for CSV export)
 var COLS = {
-  Objectives: ['id','title','description','owner_name','owner_email','team','eta','status','parent_objective_id','display_order','created_by_name','created_by_email','created_at','updated_by_name','updated_by_email','updated_at'],
+  Objectives: ['id','title','description','owner_name','owner_email','team','eta','status','display_order','created_by_name','created_by_email','created_at','updated_by_name','updated_by_email','updated_at'],
   KeyResults: ['id','objective_id','title','metric_type','start_value','target_value','current_value','unit','weight','created_by_name','created_by_email','created_at','updated_by_name','updated_by_email','updated_at'],
   CheckIns:   ['id','key_result_id','date','new_value','note','checked_in_by_name','checked_in_by_email','created_at'],
 };
@@ -176,10 +176,6 @@ document.addEventListener('alpine:init', function() {
 
     latestCheckIn(kr) { return this.krCheckIns(kr)[0] || null; },
 
-    meceWarning(obj) {
-      return this.keyResults.filter(function(kr) { return kr.objective_id === obj.id; }).length <= 1;
-    },
-
     progressColor(pct) {
       if (pct >= 70) return 'bg-emerald-500';
       if (pct >= 40) return 'bg-amber-400';
@@ -206,21 +202,16 @@ document.addEventListener('alpine:init', function() {
     backToList()      { this.view = 'objectives'; this.selectedObjectiveId = null; },
     toggleKR(krId)    { this.expandedKRId = this.expandedKRId === krId ? null : krId; },
 
-    parentCandidates(selfId) {
-      return this.objectives.filter(function(o) { return o.id !== selfId; });
-    },
-
     // ── Modals ────────────────────────────────────────────────────────────────
     openEditObjectiveModal(obj) {
       this.modal = { type: 'editObjective', saving: false, error: '', data: {
         _obj: obj,
-        title:               obj.title,
-        description:         obj.description || '',
-        owner_name:          obj.owner_name,
-        team:                obj.team || '',
-        eta:                 obj.eta  || '',
-        status:              obj.status,
-        parent_objective_id: obj.parent_objective_id || '',
+        title:       obj.title,
+        description: obj.description || '',
+        owner_name:  obj.owner_name,
+        team:        obj.team || '',
+        eta:         obj.eta  || '',
+        status:      obj.status,
       }};
     },
 
@@ -236,7 +227,6 @@ document.addEventListener('alpine:init', function() {
         title: obj.title, description: obj.description,
         owner_name: obj.owner_name, team: obj.team,
         eta: obj.eta, status: obj.status,
-        parent_objective_id: obj.parent_objective_id,
         updated_by_name: obj.updated_by_name,
         updated_by_email: obj.updated_by_email,
         updated_at: obj.updated_at,
@@ -248,7 +238,6 @@ document.addEventListener('alpine:init', function() {
       obj.team                = d.team;
       obj.eta                 = d.eta;
       obj.status              = d.status;
-      obj.parent_objective_id = d.parent_objective_id || '';
       obj.updated_by_name     = this.user.name;
       obj.updated_by_email    = this.user.email;
       obj.updated_at          = nowISO();
@@ -322,7 +311,7 @@ document.addEventListener('alpine:init', function() {
       this.modal = { type: 'newObjective', saving: false, error: '', data: {
         title: '', description: '',
         owner_name: this.user.name, owner_email: this.user.email,
-        team: '', eta: '', status: 'on-track', parent_objective_id: '',
+        team: '', eta: '', status: 'on-track',
       }};
     },
 
@@ -365,7 +354,6 @@ document.addEventListener('alpine:init', function() {
         id, title: d.title.trim(), description: d.description.trim(),
         owner_name: d.owner_name, owner_email: d.owner_email,
         team: d.team, eta: d.eta, status: d.status,
-        parent_objective_id: d.parent_objective_id || '',
         display_order: this.objectives.length + 1,
         created_by_name: this.user.name, created_by_email: this.user.email, created_at: now,
         updated_by_name: this.user.name, updated_by_email: this.user.email, updated_at: now,

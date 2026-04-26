@@ -23,7 +23,7 @@ var SCHEMA_VERSION  = '1';
 var COLS = {
   Objectives: [
     'id','title','description','owner_name','owner_email','team','eta',
-    'status','parent_objective_id','display_order',
+    'status','display_order',
     'created_by_name','created_by_email','created_at',
     'updated_by_name','updated_by_email','updated_at',
   ],
@@ -301,19 +301,19 @@ function _writeSeedData(ss, user) {
     { title: 'Grow core market revenue 30% this quarter',
       description: 'Drive higher throughput and conversion in our primary channel.',
       owner_name: user.name, owner_email: user.email,
-      team: 'Revenue', eta: '2026-06-30', status: 'on-track', parent_objective_id: '' },
+      team: 'Revenue', eta: '2026-06-30', status: 'on-track' },
     { title: 'Launch 2 new product lines',
       description: 'Enter adjacent segments with distinct SKUs and GTM plans.',
       owner_name: 'Priya Nair', owner_email: 'priya.n@' + domain,
-      team: 'Product', eta: '2026-06-30', status: 'at-risk', parent_objective_id: '' },
+      team: 'Product', eta: '2026-06-30', status: 'at-risk' },
     { title: 'Reduce average delivery cycle time by 35%',
       description: 'Operational excellence to improve NPS and reduce cost-to-serve.',
       owner_name: 'Arjun Mehta', owner_email: 'arjun.m@' + domain,
-      team: 'Operations', eta: '2026-06-30', status: 'on-track', parent_objective_id: '' },
+      team: 'Operations', eta: '2026-06-30', status: 'on-track' },
     { title: 'Raise customer NPS to 65',
       description: 'Customer delight as a sustainable growth driver.',
       owner_name: 'Sneha Kapoor', owner_email: 'sneha.k@' + domain,
-      team: 'CX', eta: '2026-06-30', status: 'off-track', parent_objective_id: '' },
+      team: 'CX', eta: '2026-06-30', status: 'off-track' },
   ];
 
   var objSheet = ss.getSheetByName('Objectives');

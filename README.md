@@ -11,7 +11,6 @@ A lightweight OKR tracker for teams of 10–100 people. No backend. No database.
 ### Objectives
 - Create objectives with title, description, owner, team, and a target date (ETA)
 - Set status: **On track · At risk · Off track · Done**
-- Nest objectives under a parent (for team-level goals aligned to a company-level goal)
 - Edit any field at any time via a clean modal
 - Progress auto-calculated from Key Results — no manual entry needed
 
@@ -124,7 +123,7 @@ Four tabs are created automatically in your Google Sheet:
 
 | Tab | Contents |
 |---|---|
-| `Objectives` | id, title, description, owner, team, eta, status, parent, display_order, audit fields |
+| `Objectives` | id, title, description, owner, team, eta, status, display_order, audit fields |
 | `KeyResults` | id, objective_id, title, metric_type, start / target / current value, unit, weight, audit fields |
 | `CheckIns` | id, key_result_id, date, new_value, note, checked_in_by, created_at |
 | `_meta` | schema_version, last_initialized_at |
