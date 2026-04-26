@@ -24,7 +24,9 @@ function genId(prefix) {
 }
 
 function nowISO() {
-  return new Date().toISOString();
+  // Store timestamps in IST so the Sheet shows readable Indian times
+  // sv-SE locale produces "YYYY-MM-DD HH:MM:SS" — replace space with T
+  return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).replace(' ', 'T');
 }
 
 // Column definitions (must mirror Code.gs COLS — used for CSV export)

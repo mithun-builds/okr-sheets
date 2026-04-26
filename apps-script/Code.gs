@@ -279,7 +279,8 @@ function _genId(prefix) {
 }
 
 function _nowISO() {
-  return new Date().toISOString();
+  // Store timestamps in IST so the Sheet shows readable Indian times
+  return Utilities.formatDate(new Date(), 'Asia/Kolkata', "yyyy-MM-dd'T'HH:mm:ss");
 }
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
