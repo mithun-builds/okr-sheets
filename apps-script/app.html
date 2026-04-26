@@ -1,0 +1,567 @@
+<script defer>
+/**
+ * app.html — Client-side Alpine.js logic for 10xGoals (Apps Script version)
+ */
+
+// ── google.script.run → Promise bridge ───────────────────────────────────────
+function call(fnName) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function(resolve, reject) {
+    var runner = google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(function(err) {
+        reject(new Error(err.message || String(err)));
+      });
+    runner[fnName].apply(runner, args);
+  });
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function genId(prefix) {
+  var ts  = Date.now().toString(36);
+  var rnd = Math.random().toString(36).slice(2, 6);
+  return prefix + '_' + ts + '_' + rnd;
+}
+
+function nowISO() {
+  return new Date().toISOString();
+}
+
+// Column definitions (must mirror Code.gs COLS — used for CSV export)
+var COLS = {
+  Objectives: ['id','title','description','owner_name','owner_email','team','eta','status','parent_objective_id','display_order','created_by_name','created_by_email','created_at','updated_by_name','updated_by_email','updated_at'],
+  KeyResults: ['id','objective_id','title','metric_type','start_value','target_value','current_value','unit','weight','created_by_name','created_by_email','created_at','updated_by_name','updated_by_email','updated_at'],
+  CheckIns:   ['id','key_result_id','date','new_value','note','checked_in_by_name','checked_in_by_email','created_at'],
+};
+
+// ── Error parser ──────────────────────────────────────────────────────────────
+var KNOWN_ERROR_TYPES = ['NOT_INITIALIZED', 'SCHEMA_ERROR'];
+
+function parseServerError(e) {
+  var raw  = (e && e.message) ? e.message : String(e);
+  if (raw.indexOf('Error: ') === 0) raw = raw.slice(7);
+  var pipe = raw.indexOf('|');
+  if (pipe !== -1) {
+    var prefix = raw.slice(0, pipe);
+    if (KNOWN_ERROR_TYPES.indexOf(prefix) !== -1) {
+      return { type: prefix, message: raw.slice(pipe + 1) };
+    }
+  }
+  return { type: null, message: raw || 'Something went wrong.' };
+}
+
+// ── Alpine component ──────────────────────────────────────────────────────────
+document.addEventListener('alpine:init', function() {
+  Alpine.data('app', function() { return {
+
+    // ── State ────────────────────────────────────────────────────────────────
+    view:      'loading',
+    user:      null,
+    initError: null,
+
+    objectives: [],
+    keyResults: [],
+    checkIns:   [],
+
+    filters: { team: '', owner: '', status: '' },
+
+    selectedObjectiveId: null,
+    expandedKRId:        null,
+
+    modal: { type: null, data: {}, saving: false, error: '' },
+
+    toast:       null,
+    _toastTimer: null,
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    async init() {
+      try {
+        this.user = await call('getCurrentUser');
+      } catch (e) {
+        this.initError = parseServerError(e);
+        this.view      = 'error';
+        return;
+      }
+      await this.loadData();
+    },
+
+    async loadData() {
+      this.view      = 'loading';
+      this.initError = null;
+      try {
+        var data = await call('loadAllData');
+        if (data === null || data === undefined) {
+          throw new Error('Server returned empty response. Check Apps Script → Executions log.');
+        }
+        this.objectives = data['Objectives'] || [];
+        this.keyResults = data['KeyResults'] || [];
+        this.checkIns   = data['CheckIns']   || [];
+        this.view = 'objectives';
+      } catch (e) {
+        this.initError = parseServerError(e);
+        this.view      = 'error';
+      }
+    },
+
+    async initializeSheet() {
+      this.view = 'loading';
+      try {
+        await call('initializeSheet');
+        await this.loadData();
+        this._toast('Sheet initialized with sample data!', 'success');
+      } catch (e) {
+        this.initError = { message: e.message || 'Initialization failed.' };
+        this.view      = 'error';
+      }
+    },
+
+    // ── Computed ──────────────────────────────────────────────────────────────
+    get filteredObjectives() {
+      var self = this;
+      return this.objectives.filter(function(obj) {
+        if (self.filters.team   && obj.team        !== self.filters.team)   return false;
+        if (self.filters.owner  && obj.owner_email !== self.filters.owner)  return false;
+        if (self.filters.status && obj.status      !== self.filters.status) return false;
+        return true;
+      }).sort(function(a, b) { return (a.display_order || 0) - (b.display_order || 0); });
+    },
+
+    get selectedObjective() {
+      var id = this.selectedObjectiveId;
+      return this.objectives.find(function(o) { return o.id === id; }) || null;
+    },
+
+    get filterTeams() {
+      return [...new Set(this.objectives.map(function(o) { return o.team; }).filter(Boolean))].sort();
+    },
+
+    get filterOwners() {
+      var map = new Map();
+      this.objectives.forEach(function(o) { if (o.owner_email) map.set(o.owner_email, o.owner_name); });
+      return [...map.entries()].map(function(e) { return { email: e[0], name: e[1] }; });
+    },
+
+    // ── Progress ──────────────────────────────────────────────────────────────
+    krProgress(kr) {
+      if (!kr) return 0;
+      if (kr.metric_type === 'boolean') return Number(kr.current_value) ? 100 : 0;
+      var start  = Number(kr.start_value  || 0);
+      var target = Number(kr.target_value || 0);
+      var curr   = Number(kr.current_value != null ? kr.current_value : start);
+      var range  = target - start;
+      if (range === 0) return curr >= target ? 100 : 0;
+      return Math.min(100, Math.max(0, ((curr - start) / range) * 100));
+    },
+
+    objectiveProgress(obj) {
+      var self        = this;
+      var krs         = this.keyResults.filter(function(kr) { return kr.objective_id === obj.id; });
+      if (!krs.length) return 0;
+      var totalWeight = krs.reduce(function(s, kr) { return s + (Number(kr.weight) || 1); }, 0);
+      if (totalWeight === 0) return 0;
+      return krs.reduce(function(s, kr) {
+        return s + self.krProgress(kr) * (Number(kr.weight) || 1);
+      }, 0) / totalWeight;
+    },
+
+    objectiveKRs(obj) {
+      return this.keyResults.filter(function(kr) { return kr.objective_id === obj.id; });
+    },
+
+    krCheckIns(kr) {
+      return this.checkIns
+        .filter(function(ci) { return ci.key_result_id === kr.id; })
+        .sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+    },
+
+    latestCheckIn(kr) { return this.krCheckIns(kr)[0] || null; },
+
+    meceWarning(obj) {
+      return this.keyResults.filter(function(kr) { return kr.objective_id === obj.id; }).length <= 1;
+    },
+
+    progressColor(pct) {
+      if (pct >= 70) return 'bg-emerald-500';
+      if (pct >= 40) return 'bg-amber-400';
+      return 'bg-rose-500';
+    },
+
+    statusColor(status) {
+      var map = {
+        'on-track':  'bg-emerald-100 text-emerald-700',
+        'at-risk':   'bg-amber-100 text-amber-700',
+        'off-track': 'bg-rose-100 text-rose-700',
+        'done':      'bg-slate-100 text-slate-600',
+      };
+      return map[status] || 'bg-slate-100 text-slate-500';
+    },
+
+    isOverdue(etaStr) {
+      if (!etaStr) return false;
+      return etaStr < new Date().toISOString().split('T')[0];
+    },
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    openObjective(id) { this.selectedObjectiveId = id; this.expandedKRId = null; this.view = 'detail'; },
+    backToList()      { this.view = 'objectives'; this.selectedObjectiveId = null; },
+    toggleKR(krId)    { this.expandedKRId = this.expandedKRId === krId ? null : krId; },
+
+    parentCandidates(selfId) {
+      return this.objectives.filter(function(o) { return o.id !== selfId; });
+    },
+
+    // ── Modals ────────────────────────────────────────────────────────────────
+    openEditObjectiveModal(obj) {
+      this.modal = { type: 'editObjective', saving: false, error: '', data: {
+        _obj: obj,
+        title:               obj.title,
+        description:         obj.description || '',
+        owner_name:          obj.owner_name,
+        team:                obj.team || '',
+        eta:                 obj.eta  || '',
+        status:              obj.status,
+        parent_objective_id: obj.parent_objective_id || '',
+      }};
+    },
+
+    async saveEditObjective() {
+      var d   = this.modal.data;
+      var obj = d._obj;
+      if (!d.title.trim()) { this.modal.error = 'Title is required.'; return; }
+
+      this.modal.saving = true;
+      this.modal.error  = '';
+
+      var prev = {
+        title: obj.title, description: obj.description,
+        owner_name: obj.owner_name, team: obj.team,
+        eta: obj.eta, status: obj.status,
+        parent_objective_id: obj.parent_objective_id,
+        updated_by_name: obj.updated_by_name,
+        updated_by_email: obj.updated_by_email,
+        updated_at: obj.updated_at,
+      };
+
+      obj.title               = d.title.trim();
+      obj.description         = d.description.trim();
+      obj.owner_name          = d.owner_name;
+      obj.team                = d.team;
+      obj.eta                 = d.eta;
+      obj.status              = d.status;
+      obj.parent_objective_id = d.parent_objective_id || '';
+      obj.updated_by_name     = this.user.name;
+      obj.updated_by_email    = this.user.email;
+      obj.updated_at          = nowISO();
+
+      this._closeModal();
+
+      try {
+        if (obj._rowIndex) await call('updateRow', 'Objectives', obj._rowIndex, obj);
+        else await this._silentReload();
+        this._toast('Objective updated.', 'success');
+      } catch (e) {
+        Object.assign(obj, prev);
+        this._toast('Could not save: ' + e.message, 'error');
+      }
+    },
+
+    openEditKRModal(kr) {
+      this.modal = { type: 'editKR', saving: false, error: '', data: {
+        _kr:           kr,
+        title:         kr.title,
+        metric_type:   kr.metric_type,
+        start_value:   kr.start_value,
+        target_value:  kr.target_value,
+        current_value: kr.current_value,
+        unit:          kr.unit  || '',
+        weight:        kr.weight,
+      }};
+    },
+
+    async saveEditKR() {
+      var d  = this.modal.data;
+      var kr = d._kr;
+      if (!d.title.trim()) { this.modal.error = 'Title is required.'; return; }
+
+      this.modal.saving = true;
+      this.modal.error  = '';
+
+      var prev = {
+        title: kr.title, metric_type: kr.metric_type,
+        start_value: kr.start_value, target_value: kr.target_value,
+        current_value: kr.current_value, unit: kr.unit, weight: kr.weight,
+        updated_by_name: kr.updated_by_name,
+        updated_by_email: kr.updated_by_email,
+        updated_at: kr.updated_at,
+      };
+
+      kr.title         = d.title.trim();
+      kr.metric_type   = d.metric_type;
+      kr.start_value   = Number(d.start_value);
+      kr.target_value  = Number(d.target_value);
+      kr.current_value = Number(d.current_value);
+      kr.unit          = d.unit;
+      kr.weight        = Number(d.weight) || 1;
+      kr.updated_by_name  = this.user.name;
+      kr.updated_by_email = this.user.email;
+      kr.updated_at       = nowISO();
+
+      this._closeModal();
+
+      try {
+        if (kr._rowIndex) await call('updateRow', 'KeyResults', kr._rowIndex, kr);
+        else await this._silentReload();
+        this._toast('Key Result updated.', 'success');
+      } catch (e) {
+        Object.assign(kr, prev);
+        this._toast('Could not save KR: ' + e.message, 'error');
+      }
+    },
+
+    openNewObjectiveModal() {
+      this.modal = { type: 'newObjective', saving: false, error: '', data: {
+        title: '', description: '',
+        owner_name: this.user.name, owner_email: this.user.email,
+        team: '', eta: '', status: 'on-track', parent_objective_id: '',
+      }};
+    },
+
+    openNewKRModal(objectiveId) {
+      this.modal = { type: 'newKR', saving: false, error: '', data: {
+        objective_id: objectiveId, title: '', metric_type: 'number',
+        start_value: 0, target_value: 100, current_value: 0, unit: '', weight: 1,
+      }};
+    },
+
+    openCheckInModal(kr) {
+      this.modal = { type: 'checkIn', saving: false, error: '', data: {
+        kr, new_value: kr.current_value ?? 0, note: '',
+        date: new Date().toISOString().split('T')[0],
+      }};
+    },
+
+    // Public close — blocked while saving (backdrop click / Cancel button)
+    closeModal() {
+      if (this.modal.saving) return;
+      this.modal = { type: null, data: {}, saving: false, error: '' };
+    },
+
+    // Internal close — always works (called after optimistic update inside save fns)
+    _closeModal() {
+      this.modal = { type: null, data: {}, saving: false, error: '' };
+    },
+
+    // ── Saves ─────────────────────────────────────────────────────────────────
+    async saveNewObjective() {
+      var d = this.modal.data;
+      if (!d.title.trim()) { this.modal.error = 'Title is required.'; return; }
+
+      this.modal.saving = true;
+      this.modal.error  = '';
+
+      var id  = genId('obj');
+      var now = nowISO();
+      var obj = {
+        id, title: d.title.trim(), description: d.description.trim(),
+        owner_name: d.owner_name, owner_email: d.owner_email,
+        team: d.team, eta: d.eta, status: d.status,
+        parent_objective_id: d.parent_objective_id || '',
+        display_order: this.objectives.length + 1,
+        created_by_name: this.user.name, created_by_email: this.user.email, created_at: now,
+        updated_by_name: this.user.name, updated_by_email: this.user.email, updated_at: now,
+        _rowIndex: null,
+      };
+
+      // Optimistic update then close immediately
+      this.objectives.push(obj);
+      this._closeModal();
+
+      try {
+        await call('appendRow', 'Objectives', obj);
+        this._toast('Objective created.', 'success');
+        await this._silentReload();
+      } catch (e) {
+        var id_ = id;
+        this.objectives = this.objectives.filter(function(o) { return o.id !== id_; });
+        this._toast('Could not save: ' + e.message, 'error');
+      }
+    },
+
+    async saveNewKR() {
+      var d = this.modal.data;
+      if (!d.title.trim()) { this.modal.error = 'Title is required.'; return; }
+
+      this.modal.saving = true;
+      this.modal.error  = '';
+
+      var id  = genId('kr');
+      var now = nowISO();
+      var kr  = {
+        id, objective_id: d.objective_id, title: d.title.trim(),
+        metric_type: d.metric_type,
+        start_value: Number(d.start_value), target_value: Number(d.target_value),
+        current_value: Number(d.current_value), unit: d.unit,
+        weight: Number(d.weight) || 1,
+        created_by_name: this.user.name, created_by_email: this.user.email, created_at: now,
+        updated_by_name: this.user.name, updated_by_email: this.user.email, updated_at: now,
+        _rowIndex: null,
+      };
+
+      this.keyResults.push(kr);
+      this._closeModal();
+
+      try {
+        await call('appendRow', 'KeyResults', kr);
+        this._toast('Key Result added.', 'success');
+        await this._silentReload();
+      } catch (e) {
+        var id_ = id;
+        this.keyResults = this.keyResults.filter(function(r) { return r.id !== id_; });
+        this._toast('Could not save KR: ' + e.message, 'error');
+      }
+    },
+
+    async saveCheckIn() {
+      var d  = this.modal.data;
+      var kr = d.kr;
+
+      this.modal.saving = true;
+      this.modal.error  = '';
+
+      var now    = nowISO();
+      var ciId   = genId('ci');
+      var newVal = Number(d.new_value);
+
+      var ci = {
+        id: ciId, key_result_id: kr.id, date: d.date,
+        new_value: newVal, note: d.note.trim(),
+        checked_in_by_name:  this.user.name,
+        checked_in_by_email: this.user.email,
+        created_at: now,
+      };
+
+      var krInState = this.keyResults.find(function(r) { return r.id === kr.id; });
+      var prevValue = kr.current_value;
+      var prevAudit = krInState
+        ? { updated_by_name: krInState.updated_by_name, updated_by_email: krInState.updated_by_email, updated_at: krInState.updated_at }
+        : {};
+
+      if (krInState) {
+        krInState.current_value    = newVal;
+        krInState.updated_by_name  = this.user.name;
+        krInState.updated_by_email = this.user.email;
+        krInState.updated_at       = now;
+      }
+      this.checkIns.push(ci);
+      this._closeModal();
+
+      try {
+        await call('appendRow', 'CheckIns', ci);
+        if (krInState && krInState._rowIndex) {
+          await call('updateRow', 'KeyResults', krInState._rowIndex, krInState);
+        }
+        this._toast('Check-in saved.', 'success');
+      } catch (e) {
+        var ciId_ = ciId;
+        this.checkIns = this.checkIns.filter(function(c) { return c.id !== ciId_; });
+        if (krInState) {
+          krInState.current_value = prevValue;
+          Object.assign(krInState, prevAudit);
+        }
+        this._toast('Check-in failed: ' + e.message, 'error');
+      }
+    },
+
+    // ── CSV export ────────────────────────────────────────────────────────────
+    exportCSV() {
+      var allObjs      = this.objectives;
+      var allObjIds    = new Set(allObjs.map(function(o) { return o.id; }));
+      var filteredKRs  = this.keyResults.filter(function(kr) { return allObjIds.has(kr.objective_id); });
+      var filteredKRIds = new Set(filteredKRs.map(function(kr) { return kr.id; }));
+      var filteredCIs  = this.checkIns.filter(function(ci) { return filteredKRIds.has(ci.key_result_id); });
+
+      var lines = [];
+      var csvRow = function(cells) {
+        return cells.map(function(c) {
+          var s = String(c == null ? '' : c);
+          return (s.includes(',') || s.includes('"') || s.includes('\n'))
+            ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }).join(',');
+      };
+
+      var section = function(label, cols, rows) {
+        lines.push(csvRow([label]));
+        lines.push(csvRow(cols));
+        rows.forEach(function(r) { lines.push(csvRow(cols.map(function(c) { return r[c] ?? ''; }))); });
+        lines.push('');
+      };
+
+      section('OBJECTIVES', COLS.Objectives, allObjs);
+      section('KEY RESULTS', COLS.KeyResults, filteredKRs);
+      section('CHECK-INS',   COLS.CheckIns,   filteredCIs);
+
+      var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      var url  = URL.createObjectURL(blob);
+      var a    = document.createElement('a');
+      a.href   = url;
+      a.download = '10xgoals_' + new Date().toISOString().split('T')[0] + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      this._toast('CSV downloaded.', 'success');
+    },
+
+    // ── Silent reload ─────────────────────────────────────────────────────────
+    async _silentReload() {
+      try {
+        var data        = await call('loadAllData');
+        this.objectives = data['Objectives'] || [];
+        this.keyResults = data['KeyResults'] || [];
+        this.checkIns   = data['CheckIns']   || [];
+      } catch (e) {
+        console.warn('Silent reload failed:', e);
+      }
+    },
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    _toast(msg, kind) {
+      clearTimeout(this._toastTimer);
+      this.toast       = { msg: msg, kind: kind || 'success' };
+      var self         = this;
+      this._toastTimer = setTimeout(function() { self.toast = null; }, 3500);
+    },
+
+    // ── Formatting ────────────────────────────────────────────────────────────
+    relativeTime(isoString) {
+      if (!isoString) return '';
+      var diff = Date.now() - new Date(isoString).getTime();
+      var mins = Math.floor(diff / 60000);
+      if (mins < 1)  return 'just now';
+      if (mins < 60) return mins + 'm ago';
+      var hrs = Math.floor(mins / 60);
+      if (hrs  < 24) return hrs + 'h ago';
+      var days = Math.floor(hrs / 24);
+      if (days < 7)  return days + 'd ago';
+      return new Date(isoString).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    },
+
+    formatDate(dateStr) {
+      if (!dateStr) return '';
+      // Parse YYYY-MM-DD without timezone shift
+      var parts = String(dateStr).split('-');
+      if (parts.length === 3) {
+        var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+      return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+
+    formatValue(kr, value) {
+      if (value === null || value === undefined) return '—';
+      if (kr.metric_type === 'boolean')    return Number(value) ? 'Done ✓' : 'Not yet';
+      if (kr.metric_type === 'percentage') return value + '%';
+      return value + (kr.unit ? ' ' + kr.unit : '');
+    },
+
+  }; }); // end Alpine.data
+}); // end alpine:init
+</script>

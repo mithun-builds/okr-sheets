@@ -1,0 +1,10 @@
+# If you create a local config override, keep it out of git
+config.local.js
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp

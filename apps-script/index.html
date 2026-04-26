@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>10xGoals</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#fff4ef',
+              100: '#ffe5d5',
+              500: '#f05a28',
+              600: '#d44d1f',
+              700: '#b03f17',
+            },
+            hl: {
+              navy:   '#1B3F8B',
+              orange: '#F05A28',
+              red:    '#D92227',
+              sky:    '#47A5E8',
+            },
+          },
+          fontFamily: {
+            sans: ['"Poppins"', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Poppins font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <?!= include('app'); ?>
+  <script defer src="https://unpkg.com/alpinejs@3.14.x/dist/cdn.min.js"></script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+
+    @keyframes shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position:  400px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 0.375rem;
+    }
+
+    .progress-bar { transition: width 0.4s ease; }
+
+    .kr-item { border-left: 3px solid #e2e8f0; }
+    .kr-item:hover  { border-left-color: #D92227; }
+    .kr-item.expanded { border-left-color: #D92227; }
+
+  </style>
+</head>
+
+<body class="h-full bg-slate-50 font-sans text-slate-800 antialiased" x-data="app" x-cloak>
+
+  <!-- ══════════════════════════════════════════════ LOADING -->
+  <div x-show="view === 'loading'" class="min-h-screen flex flex-col items-center justify-center gap-4 text-slate-400">
+    <div class="flex gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-full bg-brand-500 animate-bounce" style="animation-delay:0s"></span>
+      <span class="w-2.5 h-2.5 rounded-full bg-brand-500 animate-bounce" style="animation-delay:.15s"></span>
+      <span class="w-2.5 h-2.5 rounded-full bg-brand-500 animate-bounce" style="animation-delay:.3s"></span>
+    </div>
+    <p class="text-sm">Loading your OKRs…</p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ ERROR -->
+  <div x-show="view === 'error'" class="min-h-screen flex items-center justify-center p-6">
+    <div class="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+      <div class="text-4xl mb-3">⚠️</div>
+      <h2 class="font-semibold text-slate-800 mb-2">Setup needed</h2>
+      <p class="text-sm text-slate-500 mb-6" x-text="initError?.message || 'Something went wrong.'"></p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <button
+          x-show="initError?.type === 'NOT_INITIALIZED' || initError?.type === 'SCHEMA_ERROR'"
+          @click="initializeSheet()"
+          class="px-5 py-2.5 rounded-xl text-white text-sm font-medium transition" style="background:#D92227" onmouseover="this.style.background='#b01d21'" onmouseout="this.style.background='#D92227'"
+        >Initialize Sheet with sample data</button>
+        <button @click="loadData()" class="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium hover:bg-slate-50 transition">
+          Try again
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ MAIN APP -->
+  <div x-show="view === 'objectives' || view === 'detail'" class="min-h-screen flex flex-col">
+
+    <!-- TOP BAR — HomeLane red -->
+    <header class="sticky top-0 z-30 shadow-sm" style="background:#D92227">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+
+        <!-- Logo -->
+        <a href="#" @click.prevent="backToList()" class="shrink-0 select-none">
+          <span class="text-lg font-bold text-white">10x</span><span class="text-lg font-normal text-white">Goals</span>
+        </a>
+
+        <div class="flex-1"></div>
+
+        <!-- Refresh -->
+        <button @click="loadData()" title="Refresh"
+          class="p-1.5 rounded-lg transition"
+          style="color:rgba(255,255,255,0.55)"
+          onmouseover="this.style.color='white';this.style.background='rgba(255,255,255,0.1)'"
+          onmouseout="this.style.color='rgba(255,255,255,0.55)';this.style.background='transparent'">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+
+        <!-- User -->
+        <div class="flex items-center gap-1.5 text-sm">
+          <span class="hidden sm:block font-medium text-white" x-text="user?.name?.split(' ')[0] || '…'"></span>
+          <span class="text-xs" style="color:rgba(255,255,255,0.45)" x-text="user?.email ? '(' + user.email.split('@')[0] + ')' : ''"></span>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- ──────────────── OBJECTIVES LIST -->
+    <main x-show="view === 'objectives'" class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+
+      <!-- Filters row -->
+      <div class="flex flex-wrap items-center gap-3 mb-5">
+        <select x-model="filters.team"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="">All teams</option>
+          <template x-for="t in filterTeams" :key="t"><option :value="t" x-text="t"></option></template>
+        </select>
+        <select x-model="filters.owner"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="">All owners</option>
+          <template x-for="o in filterOwners" :key="o.email"><option :value="o.email" x-text="o.name"></option></template>
+        </select>
+        <select x-model="filters.status"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+          <option value="">All statuses</option>
+          <option value="on-track">On track</option>
+          <option value="at-risk">At risk</option>
+          <option value="off-track">Off track</option>
+          <option value="done">Done</option>
+        </select>
+        <button x-show="filters.team || filters.owner || filters.status"
+          @click="filters = { team: '', owner: '', status: '' }"
+          class="text-xs text-slate-400 hover:text-slate-600">Clear filters</button>
+
+        <div class="flex-1"></div>
+
+        <button @click="exportCSV()"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Export CSV
+        </button>
+        <button @click="openNewObjectiveModal()"
+          class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-white text-sm font-medium transition shadow-sm"
+          style="background:#D92227"
+          onmouseover="this.style.background='#b01d21'"
+          onmouseout="this.style.background='#D92227'">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M12 4v16m8-8H4"/></svg>
+          New Objective
+        </button>
+      </div>
+
+      <!-- Empty state -->
+      <div x-show="filteredObjectives.length === 0" class="text-center py-20 text-slate-400">
+        <div class="text-5xl mb-3">🎯</div>
+        <p class="text-sm font-medium">No objectives yet</p>
+        <p class="text-xs mt-1">Adjust your filters or create a new objective.</p>
+      </div>
+
+      <!-- Cards grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <template x-for="obj in filteredObjectives" :key="obj.id">
+          <div @click="openObjective(obj.id)"
+            class="bg-white rounded-xl border border-slate-200 p-5 cursor-pointer hover:shadow-md hover:border-slate-300 transition group">
+            <div class="flex items-start justify-between gap-2 mb-3">
+              <h3 class="font-semibold text-slate-800 text-sm leading-snug group-hover:text-brand-600 transition"
+                x-text="obj.title"></h3>
+              <div class="flex flex-col items-end gap-1 shrink-0">
+                <span class="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
+                  :class="statusColor(obj.status)" x-text="obj.status?.replace('-', ' ')"></span>
+                <span x-show="meceWarning(obj)"
+                  class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠ KRs needed</span>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-400 mb-3">
+              <span x-text="obj.owner_name"></span>
+              <span x-show="obj.team"> · <span x-text="obj.team"></span></span>
+              <template x-if="obj.eta">
+                <span> · <span
+                  :class="isOverdue(obj.eta) ? 'text-rose-500 font-medium' : ''"
+                  x-text="(isOverdue(obj.eta) ? 'Overdue · ' : 'Due ') + formatDate(obj.eta)"></span></span>
+              </template>
+            </p>
+
+            <div class="mb-1">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-xs text-slate-400"
+                  x-text="objectiveKRs(obj).length + ' KR' + (objectiveKRs(obj).length !== 1 ? 's' : '')"></span>
+                <span class="text-xs font-semibold text-slate-600"
+                  x-text="Math.round(objectiveProgress(obj)) + '%'"></span>
+              </div>
+              <div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full progress-bar"
+                  :class="progressColor(objectiveProgress(obj))"
+                  :style="'width:' + objectiveProgress(obj) + '%'"></div>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-400 mt-3">
+              Updated by <span class="text-slate-500" x-text="obj.updated_by_name?.split(' ')[0] || '—'"></span>
+              · <span x-text="relativeTime(obj.updated_at)"></span>
+            </p>
+          </div>
+        </template>
+      </div>
+    </main>
+
+    <!-- ──────────────── OBJECTIVE DETAIL -->
+    <main x-show="view === 'detail' && selectedObjective" class="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6">
+      <button @click="backToList()"
+        class="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 mb-5 transition">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M15 19l-7-7 7-7"/>
+        </svg>
+        Back to Objectives
+      </button>
+
+      <template x-if="selectedObjective">
+        <div>
+          <!-- Header card -->
+          <div class="bg-white rounded-xl border border-slate-200 p-6 mb-4">
+            <div class="flex items-start gap-4">
+              <div class="flex-1 min-w-0">
+
+                <!-- Title + Edit button -->
+                <div class="flex items-start justify-between gap-3 mb-3">
+                  <h1 class="text-xl font-bold text-slate-800 leading-snug" x-text="selectedObjective.title"></h1>
+                  <button @click="openEditObjectiveModal(selectedObjective)"
+                    class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                    Edit
+                  </button>
+                </div>
+
+                <!-- Meta pills -->
+                <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500 mb-4">
+                  <span class="text-xs font-medium px-2 py-0.5 rounded-full"
+                    :class="statusColor(selectedObjective.status)"
+                    x-text="selectedObjective.status?.replace('-', ' ')"></span>
+                  <span class="text-xs text-slate-400">
+                    <span x-text="selectedObjective.owner_name"></span>
+                    <span x-show="selectedObjective.team"> · <span x-text="selectedObjective.team"></span></span>
+                  </span>
+                  <template x-if="selectedObjective.eta">
+                    <span class="text-xs"
+                      :class="isOverdue(selectedObjective.eta) ? 'text-rose-500 font-medium' : 'text-slate-400'"
+                      x-text="(isOverdue(selectedObjective.eta) ? 'Overdue · ' : 'Due ') + formatDate(selectedObjective.eta)"></span>
+                  </template>
+                  <template x-if="selectedObjective.parent_objective_id">
+                    <span class="text-xs text-slate-400">Aligned to:
+                      <button @click="openObjective(selectedObjective.parent_objective_id)"
+                        class="font-medium text-brand-600 hover:underline"
+                        x-text="objectives.find(o => o.id === selectedObjective.parent_objective_id)?.title || 'Parent'">
+                      </button>
+                    </span>
+                  </template>
+                </div>
+
+                <!-- Description -->
+                <p class="text-sm"
+                  :class="selectedObjective.description ? 'text-slate-500' : 'italic text-slate-300'"
+                  x-text="selectedObjective.description || 'No description — click Edit to add one.'"></p>
+              </div>
+
+              <!-- Progress -->
+              <div class="shrink-0 text-center">
+                <div class="text-3xl font-bold"
+                  :class="objectiveProgress(selectedObjective) >= 70 ? 'text-emerald-600' : objectiveProgress(selectedObjective) >= 40 ? 'text-amber-500' : 'text-rose-500'"
+                  x-text="Math.round(objectiveProgress(selectedObjective)) + '%'"></div>
+                <div class="text-xs text-slate-400">progress</div>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-400 mt-4 border-t border-slate-100 pt-3">
+              Created by <span x-text="selectedObjective.created_by_name"></span>
+              · Last updated by <span x-text="selectedObjective.updated_by_name"></span>
+              · <span x-text="relativeTime(selectedObjective.updated_at)"></span>
+            </p>
+          </div>
+
+          <!-- Key Results -->
+          <div class="mb-2 flex items-center justify-between">
+            <div>
+              <h2 class="font-semibold text-slate-700">Key Results</h2>
+              <p x-show="objectiveKRs(selectedObjective).length <= 1"
+                class="text-xs text-amber-600 mt-0.5">
+                ⚠ Coverage check — do these KRs, taken together, fully prove the objective is met?
+              </p>
+            </div>
+            <button @click="openNewKRModal(selectedObjective.id)"
+              class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition"
+              style="background:#D92227"
+              onmouseover="this.style.background='#b01d21'"
+              onmouseout="this.style.background='#D92227'">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 4v16m8-8H4"/>
+              </svg>
+              Add KR
+            </button>
+          </div>
+
+          <div class="space-y-2">
+            <template x-if="objectiveKRs(selectedObjective).length === 0">
+              <div class="bg-white rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-400">
+                No Key Results yet — add one to start tracking progress.
+              </div>
+            </template>
+
+            <template x-for="kr in objectiveKRs(selectedObjective)" :key="kr.id">
+              <div class="bg-white rounded-xl border border-slate-200 overflow-hidden kr-item"
+                :class="expandedKRId === kr.id && 'expanded'">
+
+                <!-- KR row -->
+                <div @click="toggleKR(kr.id)" class="px-5 py-4 cursor-pointer hover:bg-slate-50 transition">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-2">
+                        <h4 class="text-sm font-medium text-slate-700" x-text="kr.title"></h4>
+                        <span class="text-xs text-slate-400">wt <span x-text="kr.weight"></span></span>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div class="h-full rounded-full progress-bar"
+                            :class="progressColor(krProgress(kr))"
+                            :style="'width:' + krProgress(kr) + '%'"></div>
+                        </div>
+                        <span class="text-xs font-semibold text-slate-600 w-10 text-right"
+                          x-text="Math.round(krProgress(kr)) + '%'"></span>
+                      </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <div class="text-sm font-semibold text-slate-800" x-text="formatValue(kr, kr.current_value)"></div>
+                      <div class="text-xs text-slate-400">of <span x-text="formatValue(kr, kr.target_value)"></span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- KR expanded: check-in history -->
+                <div x-show="expandedKRId === kr.id" x-transition
+                  class="border-t border-slate-100 bg-slate-50 px-5 py-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Check-in history</p>
+                    <div class="flex items-center gap-2">
+                      <button @click.stop="openEditKRModal(kr)"
+                        class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                        Edit KR
+                      </button>
+                      <button @click.stop="openCheckInModal(kr)"
+                        class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition"
+                        style="background:#D92227"
+                        onmouseover="this.style.background='#b01d21'"
+                        onmouseout="this.style.background='#D92227'">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                          <path d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Check in
+                      </button>
+                    </div>
+                  </div>
+
+                  <div x-show="krCheckIns(kr).length === 0" class="text-xs text-slate-400 italic py-1">No check-ins yet.</div>
+                  <div class="space-y-2">
+                    <template x-for="ci in krCheckIns(kr).slice(0, 5)" :key="ci.id">
+                      <div class="flex items-start gap-3 text-xs">
+                        <div class="mt-0.5 w-1.5 h-1.5 rounded-full shrink-0" style="background:#D92227"></div>
+                        <div class="flex-1">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-semibold text-slate-700" x-text="formatValue(kr, ci.new_value)"></span>
+                            <span class="text-slate-400">
+                              by <span x-text="ci.checked_in_by_name?.split(' ')[0]"></span>
+                              · <span x-text="formatDate(ci.date)"></span>
+                            </span>
+                          </div>
+                          <p x-show="ci.note" class="text-slate-500 mt-0.5 italic" x-text="ci.note"></p>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </main>
+
+  </div><!-- end MAIN APP -->
+
+  <!-- ══════════════════════════════════════════════ MODALS -->
+  <!-- Backdrop -->
+  <div x-show="modal.type !== null"
+    x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-100"  x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+    @click="closeModal()"
+    class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-40"></div>
+
+  <!-- Panel -->
+  <div x-show="modal.type !== null"
+    x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+    x-transition:leave="transition ease-in duration-100"  x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+    class="fixed inset-0 z-50 flex items-center justify-center p-4" @click.self="closeModal()">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+
+      <!-- ── New Objective ── -->
+      <template x-if="modal.type === 'newObjective'">
+        <div class="p-6">
+          <h2 class="font-semibold text-slate-800 mb-5">New Objective</h2>
+          <div class="space-y-4">
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Title *</label>
+              <input x-model="modal.data.title" type="text" placeholder="What do you want to achieve?"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+              <textarea x-model="modal.data.description" rows="2" placeholder="Why does this matter?"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Owner name</label>
+                <input x-model="modal.data.owner_name" type="text"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Team</label>
+                <input x-model="modal.data.team" type="text" list="team-list"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                <datalist id="team-list">
+                  <template x-for="t in filterTeams" :key="t"><option :value="t"></option></template>
+                </datalist>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">ETA (target date)</label>
+                <input x-model="modal.data.eta" type="date"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                <select x-model="modal.data.status"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="on-track">On track</option>
+                  <option value="at-risk">At risk</option>
+                  <option value="off-track">Off track</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Parent objective (optional)</label>
+              <select x-model="modal.data.parent_objective_id"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="">— None —</option>
+                <template x-for="p in parentCandidates(null)" :key="p.id">
+                  <option :value="p.id" x-text="p.title"></option>
+                </template>
+              </select>
+            </div>
+
+            <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
+
+            <div class="flex justify-end gap-3 pt-1">
+              <button @click="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition">Cancel</button>
+              <button @click="saveNewObjective()" :disabled="modal.saving"
+                class="px-5 py-2 rounded-xl text-white text-sm font-medium transition disabled:opacity-50"
+                style="background:#D92227"
+                onmouseover="this.style.background='#b01d21'"
+                onmouseout="this.style.background='#D92227'">
+                <span x-show="!modal.saving">Create Objective</span>
+                <span x-show="modal.saving">Saving…</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ── New KR ── -->
+      <template x-if="modal.type === 'newKR'">
+        <div class="p-6">
+          <h2 class="font-semibold text-slate-800 mb-5">Add Key Result</h2>
+          <div class="space-y-4">
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Title *</label>
+              <input x-model="modal.data.title" type="text" placeholder="What will you measure?"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Metric type</label>
+                <select x-model="modal.data.metric_type"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="number">Number</option>
+                  <option value="percentage">Percentage</option>
+                  <option value="boolean">Boolean (done / not done)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Unit</label>
+                <input x-model="modal.data.unit" type="text" placeholder="₹ Cr, studios, %"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
+
+            <div x-show="modal.data.metric_type !== 'boolean'" class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Start</label>
+                <input x-model.number="modal.data.start_value" type="number"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Target</label>
+                <input x-model.number="modal.data.target_value" type="number"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Current</label>
+                <input x-model.number="modal.data.current_value" type="number"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">
+                Weight <span class="font-normal text-slate-400">(relative importance among KRs)</span>
+              </label>
+              <input x-model.number="modal.data.weight" type="number" min="0.1" step="0.5"
+                class="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
+
+            <div class="flex justify-end gap-3 pt-1">
+              <button @click="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition">Cancel</button>
+              <button @click="saveNewKR()" :disabled="modal.saving"
+                class="px-5 py-2 rounded-xl text-white text-sm font-medium transition disabled:opacity-50"
+                style="background:#D92227"
+                onmouseover="this.style.background='#b01d21'"
+                onmouseout="this.style.background='#D92227'">
+                <span x-show="!modal.saving">Add Key Result</span>
+                <span x-show="modal.saving">Saving…</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ── Edit Objective ── -->
+      <template x-if="modal.type === 'editObjective'">
+        <div class="p-6">
+          <h2 class="font-semibold text-slate-800 mb-5">Edit Objective</h2>
+          <div class="space-y-4">
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Title *</label>
+              <input x-model="modal.data.title" type="text"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+              <textarea x-model="modal.data.description" rows="2" placeholder="Why does this matter?"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Owner name</label>
+                <input x-model="modal.data.owner_name" type="text"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Team</label>
+                <input x-model="modal.data.team" type="text" list="edit-team-list"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                <datalist id="edit-team-list">
+                  <template x-for="t in filterTeams" :key="t"><option :value="t"></option></template>
+                </datalist>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">ETA (target date)</label>
+                <input x-model="modal.data.eta" type="date"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                <select x-model="modal.data.status"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="on-track">On track</option>
+                  <option value="at-risk">At risk</option>
+                  <option value="off-track">Off track</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Parent objective (optional)</label>
+              <select x-model="modal.data.parent_objective_id"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                <option value="">— None —</option>
+                <template x-for="p in parentCandidates(modal.data._obj?.id)" :key="p.id">
+                  <option :value="p.id" x-text="p.title"></option>
+                </template>
+              </select>
+            </div>
+
+            <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
+
+            <div class="flex justify-end gap-3 pt-1">
+              <button @click="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition">Cancel</button>
+              <button @click="saveEditObjective()" :disabled="modal.saving"
+                class="px-5 py-2 rounded-xl text-white text-sm font-medium transition disabled:opacity-50"
+                style="background:#D92227"
+                onmouseover="this.style.background='#b01d21'"
+                onmouseout="this.style.background='#D92227'">
+                <span x-show="!modal.saving">Save Changes</span>
+                <span x-show="modal.saving">Saving…</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ── Edit KR ── -->
+      <template x-if="modal.type === 'editKR'">
+        <div class="p-6">
+          <h2 class="font-semibold text-slate-800 mb-5">Edit Key Result</h2>
+          <div class="space-y-4">
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Title *</label>
+              <input x-model="modal.data.title" type="text"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Metric type</label>
+                <select x-model="modal.data.metric_type"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="number">Number</option>
+                  <option value="percentage">Percentage</option>
+                  <option value="boolean">Boolean (done / not done)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Unit</label>
+                <input x-model="modal.data.unit" type="text" placeholder="₹ Cr, studios, %"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
+
+            <div x-show="modal.data.metric_type !== 'boolean'" class="grid grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Start</label>
+                <input x-model.number="modal.data.start_value" type="number"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Target</label>
+                <input x-model.number="modal.data.target_value" type="number"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Current</label>
+                <input x-model.number="modal.data.current_value" type="number"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">
+                Weight <span class="font-normal text-slate-400">(relative importance among KRs)</span>
+              </label>
+              <input x-model.number="modal.data.weight" type="number" min="0.1" step="0.5"
+                class="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
+
+            <div class="flex justify-end gap-3 pt-1">
+              <button @click="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition">Cancel</button>
+              <button @click="saveEditKR()" :disabled="modal.saving"
+                class="px-5 py-2 rounded-xl text-white text-sm font-medium transition disabled:opacity-50"
+                style="background:#D92227"
+                onmouseover="this.style.background='#b01d21'"
+                onmouseout="this.style.background='#D92227'">
+                <span x-show="!modal.saving">Save Changes</span>
+                <span x-show="modal.saving">Saving…</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </template>
+
+      <!-- ── Check-in ── -->
+      <template x-if="modal.type === 'checkIn'">
+        <div class="p-6">
+          <h2 class="font-semibold text-slate-800 mb-1">Check in</h2>
+          <p class="text-sm text-slate-500 mb-5" x-text="modal.data.kr?.title"></p>
+          <div class="space-y-4">
+
+            <div x-show="modal.data.kr?.metric_type !== 'boolean'">
+              <label class="block text-xs font-medium text-slate-600 mb-1">
+                New value
+                <span x-show="modal.data.kr?.unit" class="font-normal text-slate-400">
+                  (<span x-text="modal.data.kr?.unit"></span>)
+                </span>
+              </label>
+              <input x-model.number="modal.data.new_value" type="number"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div x-show="modal.data.kr?.metric_type === 'boolean'">
+              <label class="block text-xs font-medium text-slate-600 mb-2">Status</label>
+              <div class="flex gap-3">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" x-model.number="modal.data.new_value" :value="1" class="accent-brand-500" /> Done ✓
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" x-model.number="modal.data.new_value" :value="0" class="accent-brand-500" /> Not yet
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Date</label>
+              <input x-model="modal.data.date" type="date"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">
+                Note <span class="font-normal text-slate-400">(optional)</span>
+              </label>
+              <textarea x-model="modal.data.note" rows="2" placeholder="What's the story behind this number?"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+
+            <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
+
+            <div class="flex justify-end gap-3 pt-1">
+              <button @click="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition">Cancel</button>
+              <button @click="saveCheckIn()" :disabled="modal.saving"
+                class="px-5 py-2 rounded-xl text-white text-sm font-medium transition disabled:opacity-50"
+                style="background:#D92227"
+                onmouseover="this.style.background='#b01d21'"
+                onmouseout="this.style.background='#D92227'">
+                <span x-show="!modal.saving">Save Check-in</span>
+                <span x-show="modal.saving">Saving…</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ TOAST -->
+  <div x-show="toast !== null"
+    x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+    x-transition:leave="transition ease-in duration-150"  x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-2"
+    class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2"
+    :class="toast?.kind === 'success' ? 'bg-slate-800 text-white' : 'bg-rose-600 text-white'">
+    <span x-show="toast?.kind === 'success'">✓</span>
+    <span x-show="toast?.kind === 'error'">⚠</span>
+    <span x-text="toast?.msg"></span>
+  </div>
+
+</body>
+</html>
