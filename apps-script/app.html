@@ -495,6 +495,7 @@ document.addEventListener('alpine:init', function() {
             self._confirmCancel();
             self.backToList();
             self._toast('Objective deleted.', 'success');
+            await self._silentReload(); // refresh _rowIndex for rows that shifted
           } catch (e) {
             self.confirm.saving = false;
             self._toast(parseServerError(e).message, 'error');
@@ -516,6 +517,7 @@ document.addEventListener('alpine:init', function() {
             self.keyResults = self.keyResults.filter(function(r) { return r.id !== kr.id; });
             self._confirmCancel();
             self._toast('Key Result deleted.', 'success');
+            await self._silentReload(); // refresh _rowIndex for rows that shifted
           } catch (e) {
             self.confirm.saving = false;
             self._toast(parseServerError(e).message, 'error');
@@ -544,6 +546,7 @@ document.addEventListener('alpine:init', function() {
             }
             self._confirmCancel();
             self._toast('Check-in deleted.', 'success');
+            await self._silentReload(); // refresh _rowIndex + KR current_value from server
           } catch (e) {
             self.confirm.saving = false;
             self._toast(parseServerError(e).message, 'error');

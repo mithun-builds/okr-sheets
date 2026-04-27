@@ -188,11 +188,14 @@ function deleteObjective(objId) {
   var idCol    = objH.indexOf('id');
   var creatorCol = objH.indexOf('created_by_email');
 
+  var ownerCol  = objH.indexOf('owner_email');
   var objRowIdx = -1;
   for (var i = 1; i < objData.length; i++) {
     if (String(objData[i][idCol]) === String(objId)) {
-      if (objData[i][creatorCol] !== user.email)
-        throw new Error('PERMISSION_DENIED|Only the creator can delete this objective.');
+      var isCreator = objData[i][creatorCol] === user.email;
+      var isOwner   = objData[i][ownerCol]   === user.email;
+      if (!isCreator && !isOwner)
+        throw new Error('PERMISSION_DENIED|Only the creator or owner can delete this objective.');
       objRowIdx = i + 1;
       break;
     }
@@ -245,16 +248,34 @@ function deleteKR(krId) {
   var idCol      = krH.indexOf('id');
   var creatorCol = krH.indexOf('created_by_email');
 
-  var krRowIdx = -1;
+  var krObjIdCol = krH.indexOf('objective_id');
+  var krRowIdx   = -1;
+  var objIdForKR = '';
   for (var i = 1; i < krData.length; i++) {
     if (String(krData[i][idCol]) === String(krId)) {
-      if (krData[i][creatorCol] !== user.email)
-        throw new Error('PERMISSION_DENIED|Only the creator can delete this Key Result.');
-      krRowIdx = i + 1;
+      krRowIdx   = i + 1;
+      objIdForKR = String(krData[i][krObjIdCol]);
       break;
     }
   }
   if (krRowIdx === -1) throw new Error('Key Result not found.');
+
+  // Resolve objective owner
+  var objSheet2  = ss.getSheetByName('Objectives');
+  var objData2   = objSheet2.getDataRange().getValues();
+  var objH2      = objData2[0];
+  var objOwner   = '';
+  for (var j = 1; j < objData2.length; j++) {
+    if (String(objData2[j][objH2.indexOf('id')]) === objIdForKR) {
+      objOwner = String(objData2[j][objH2.indexOf('owner_email')]);
+      break;
+    }
+  }
+
+  var isCreator = krData[krRowIdx - 1][creatorCol] === user.email;
+  var isOwner   = objOwner === user.email;
+  if (!isCreator && !isOwner)
+    throw new Error('PERMISSION_DENIED|Only the creator or objective owner can delete this Key Result.');
 
   // Delete all check-ins for this KR
   var ciSheet  = ss.getSheetByName('CheckIns');
@@ -288,14 +309,17 @@ function deleteCheckIn(ciId) {
   var krId     = '';
   for (var i = 1; i < ciData.length; i++) {
     if (String(ciData[i][idCol]) === String(ciId)) {
-      if (ciData[i][creatorCol] !== user.email)
-        throw new Error('PERMISSION_DENIED|Only the creator can delete this check-in.');
       ciRowIdx = i + 1;
       krId     = String(ciData[i][krIdCol]);
       break;
     }
   }
   if (ciRowIdx === -1) throw new Error('Check-in not found.');
+
+  var isCreator = ciData[ciRowIdx - 1][creatorCol] === user.email;
+  var isOwner   = _getObjectiveOwnerForKR(ss, krId) === user.email;
+  if (!isCreator && !isOwner)
+    throw new Error('PERMISSION_DENIED|Only the creator or objective owner can delete this check-in.');
 
   ciSheet.deleteRow(ciRowIdx);
   _syncKRCurrentValue(ss, krId);
@@ -322,14 +346,17 @@ function updateCheckIn(ciId, newValue, note, date) {
   var krId     = '';
   for (var i = 1; i < ciData.length; i++) {
     if (String(ciData[i][idCol]) === String(ciId)) {
-      if (ciData[i][creatorCol] !== user.email)
-        throw new Error('PERMISSION_DENIED|Only the creator can edit this check-in.');
       ciRowIdx = i + 1;
       krId     = String(ciData[i][krIdCol]);
       break;
     }
   }
   if (ciRowIdx === -1) throw new Error('Check-in not found.');
+
+  var isCreator = ciData[ciRowIdx - 1][creatorCol] === user.email;
+  var isOwner   = _getObjectiveOwnerForKR(ss, krId) === user.email;
+  if (!isCreator && !isOwner)
+    throw new Error('PERMISSION_DENIED|Only the creator or objective owner can edit this check-in.');
 
   ciSheet.getRange(ciRowIdx, valCol  + 1).setValue(newValue);
   ciSheet.getRange(ciRowIdx, noteCol + 1).setValue(note);
@@ -445,6 +472,38 @@ function exportCSVData(cycle) {
     checkIns:   data['CheckIns'],
     cycle:      cycle,
   };
+}
+
+// Return the owner_email of the objective that owns a given KR.
+// Used to check inherited permission for KR children (check-ins).
+function _getObjectiveOwnerForKR(ss, krId) {
+  var krSheet = ss.getSheetByName('KeyResults');
+  var krData  = krSheet.getDataRange().getValues();
+  var krH     = krData[0];
+  var krIdCol = krH.indexOf('id');
+  var krObjCol= krH.indexOf('objective_id');
+
+  var objId = '';
+  for (var i = 1; i < krData.length; i++) {
+    if (String(krData[i][krIdCol]) === String(krId)) {
+      objId = String(krData[i][krObjCol]);
+      break;
+    }
+  }
+  if (!objId) return '';
+
+  var objSheet  = ss.getSheetByName('Objectives');
+  var objData   = objSheet.getDataRange().getValues();
+  var objH      = objData[0];
+  var objIdCol  = objH.indexOf('id');
+  var ownerCol  = objH.indexOf('owner_email');
+
+  for (var j = 1; j < objData.length; j++) {
+    if (String(objData[j][objIdCol]) === objId) {
+      return String(objData[j][ownerCol]);
+    }
+  }
+  return '';
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
