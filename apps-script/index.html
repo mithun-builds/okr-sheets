@@ -248,16 +248,26 @@
             <div class="flex items-start gap-4">
               <div class="flex-1 min-w-0">
 
-                <!-- Title + Edit button -->
+                <!-- Title + Edit / Delete buttons -->
                 <div class="flex items-start justify-between gap-3 mb-3">
                   <h1 class="text-xl font-bold text-slate-800 leading-snug" x-text="selectedObjective.title"></h1>
-                  <button @click="openEditObjectiveModal(selectedObjective)"
-                    class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
-                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                    </svg>
-                    Edit
-                  </button>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <button @click="openEditObjectiveModal(selectedObjective)"
+                      class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                      </svg>
+                      Edit
+                    </button>
+                    <button x-show="user?.email === selectedObjective?.created_by_email"
+                      @click="deleteObjective(selectedObjective)"
+                      class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs text-rose-500 hover:bg-rose-50 transition">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 <!-- Meta pills -->
@@ -364,6 +374,14 @@
                         </svg>
                         Edit KR
                       </button>
+                      <button x-show="user?.email === kr.created_by_email"
+                        @click.stop="deleteKR(kr)"
+                        class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-rose-200 text-xs text-rose-500 hover:bg-rose-50 transition">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Delete KR
+                      </button>
                       <button @click.stop="openCheckInModal(kr)"
                         class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition"
                         style="background:#D92227"
@@ -389,6 +407,18 @@
                               by <span x-text="ci.checked_in_by_name?.split(' ')[0]"></span>
                               · <span x-text="formatDate(ci.date)"></span>
                             </span>
+                            <template x-if="user?.email === ci.checked_in_by_email">
+                              <span class="flex items-center gap-1">
+                                <button @click.stop="openEditCheckInModal(ci, kr)" title="Edit"
+                                  class="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition">
+                                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+                                <button @click.stop="deleteCheckIn(ci, kr)" title="Delete"
+                                  class="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition">
+                                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                              </span>
+                            </template>
                           </div>
                           <p x-show="ci.note" class="text-slate-500 mt-0.5 italic" x-text="ci.note"></p>
                         </div>
@@ -707,6 +737,57 @@
         </div>
       </template>
 
+      <!-- ── Edit Check-in ── -->
+      <template x-if="modal.type === 'editCheckIn'">
+        <div class="p-6">
+          <h2 class="font-semibold text-slate-800 mb-1">Edit Check-in</h2>
+          <p class="text-sm text-slate-500 mb-5" x-text="modal.data._kr?.title"></p>
+          <div class="space-y-4">
+
+            <div x-show="modal.data._kr?.metric_type !== 'boolean'">
+              <label class="block text-xs font-medium text-slate-600 mb-1">
+                Value <span x-show="modal.data._kr?.unit" class="font-normal text-slate-400">(<span x-text="modal.data._kr?.unit"></span>)</span>
+              </label>
+              <input x-model.number="modal.data.new_value" type="number"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div x-show="modal.data._kr?.metric_type === 'boolean'">
+              <label class="block text-xs font-medium text-slate-600 mb-2">Status</label>
+              <div class="flex gap-3">
+                <label class="flex items-center gap-2 cursor-pointer"><input type="radio" x-model.number="modal.data.new_value" :value="1" class="accent-brand-500" /> Done ✓</label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="radio" x-model.number="modal.data.new_value" :value="0" class="accent-brand-500" /> Not yet</label>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Date</label>
+              <input x-model="modal.data.date" type="date"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Note <span class="font-normal text-slate-400">(optional)</span></label>
+              <textarea x-model="modal.data.note" rows="2"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"></textarea>
+            </div>
+
+            <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
+
+            <div class="flex justify-end gap-3 pt-1">
+              <button @click="closeModal()" class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition">Cancel</button>
+              <button @click="saveEditCheckIn()" :disabled="modal.saving"
+                class="px-5 py-2 rounded-xl text-white text-sm font-medium transition disabled:opacity-50"
+                style="background:#D92227" onmouseover="this.style.background='#b01d21'" onmouseout="this.style.background='#D92227'">
+                <span x-show="!modal.saving">Save Changes</span>
+                <span x-show="modal.saving">Saving…</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </template>
+
       <!-- ── Check-in ── -->
       <template x-if="modal.type === 'checkIn'">
         <div class="p-6">
@@ -769,6 +850,38 @@
         </div>
       </template>
 
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ CONFIRM DIALOG -->
+  <div x-show="confirm.show"
+    x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+    class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div
+      x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+      class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+      <div class="flex items-start gap-3 mb-4">
+        <div class="shrink-0 w-9 h-9 rounded-full bg-rose-100 flex items-center justify-center">
+          <svg class="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="font-semibold text-slate-800 text-sm" x-text="confirm.title"></h3>
+          <p class="text-xs text-slate-500 mt-1 leading-relaxed" x-text="confirm.message"></p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button @click="_confirmCancel()" :disabled="confirm.saving"
+          class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition disabled:opacity-50">Cancel</button>
+        <button @click="_confirmOk()" :disabled="confirm.saving"
+          class="px-4 py-2 rounded-xl text-white text-sm font-medium transition disabled:opacity-50"
+          style="background:#D92227" onmouseover="this.style.background='#b01d21'" onmouseout="this.style.background='#D92227'">
+          <span x-show="!confirm.saving">Delete</span>
+          <span x-show="confirm.saving">Deleting…</span>
+        </button>
+      </div>
     </div>
   </div>
 

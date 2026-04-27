@@ -174,6 +174,217 @@ function updateRow(tabName, rowIndex, rowData) {
   sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
 }
 
+// ── Delete operations ─────────────────────────────────────────────────────────
+
+function deleteObjective(objId) {
+  _checkAuth();
+  var user = getCurrentUser();
+  var ss   = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  // Find objective row & verify creator
+  var objSheet = ss.getSheetByName('Objectives');
+  var objData  = objSheet.getDataRange().getValues();
+  var objH     = objData[0];
+  var idCol    = objH.indexOf('id');
+  var creatorCol = objH.indexOf('created_by_email');
+
+  var objRowIdx = -1;
+  for (var i = 1; i < objData.length; i++) {
+    if (String(objData[i][idCol]) === String(objId)) {
+      if (objData[i][creatorCol] !== user.email)
+        throw new Error('PERMISSION_DENIED|Only the creator can delete this objective.');
+      objRowIdx = i + 1;
+      break;
+    }
+  }
+  if (objRowIdx === -1) throw new Error('Objective not found.');
+
+  // Collect KR IDs belonging to this objective
+  var krSheet  = ss.getSheetByName('KeyResults');
+  var krData   = krSheet.getDataRange().getValues();
+  var krH      = krData[0];
+  var krIdCol  = krH.indexOf('id');
+  var krObjCol = krH.indexOf('objective_id');
+
+  var krIds = [];
+  var krRows = [];
+  for (var k = 1; k < krData.length; k++) {
+    if (String(krData[k][krObjCol]) === String(objId)) {
+      krIds.push(String(krData[k][krIdCol]));
+      krRows.push(k + 1);
+    }
+  }
+
+  // Collect check-in rows for those KRs
+  var ciSheet  = ss.getSheetByName('CheckIns');
+  var ciData   = ciSheet.getDataRange().getValues();
+  var ciH      = ciData[0];
+  var ciKrCol  = ciH.indexOf('key_result_id');
+
+  var ciRows = [];
+  for (var c = 1; c < ciData.length; c++) {
+    if (krIds.indexOf(String(ciData[c][ciKrCol])) !== -1) ciRows.push(c + 1);
+  }
+
+  // Delete rows bottom-to-top to preserve indices
+  _deleteRows(ciSheet, ciRows);
+  _deleteRows(krSheet, krRows);
+  objSheet.deleteRow(objRowIdx);
+  SpreadsheetApp.flush();
+  return { success: true };
+}
+
+function deleteKR(krId) {
+  _checkAuth();
+  var user = getCurrentUser();
+  var ss   = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  var krSheet    = ss.getSheetByName('KeyResults');
+  var krData     = krSheet.getDataRange().getValues();
+  var krH        = krData[0];
+  var idCol      = krH.indexOf('id');
+  var creatorCol = krH.indexOf('created_by_email');
+
+  var krRowIdx = -1;
+  for (var i = 1; i < krData.length; i++) {
+    if (String(krData[i][idCol]) === String(krId)) {
+      if (krData[i][creatorCol] !== user.email)
+        throw new Error('PERMISSION_DENIED|Only the creator can delete this Key Result.');
+      krRowIdx = i + 1;
+      break;
+    }
+  }
+  if (krRowIdx === -1) throw new Error('Key Result not found.');
+
+  // Delete all check-ins for this KR
+  var ciSheet  = ss.getSheetByName('CheckIns');
+  var ciData   = ciSheet.getDataRange().getValues();
+  var ciH      = ciData[0];
+  var ciKrCol  = ciH.indexOf('key_result_id');
+
+  var ciRows = [];
+  for (var c = 1; c < ciData.length; c++) {
+    if (String(ciData[c][ciKrCol]) === String(krId)) ciRows.push(c + 1);
+  }
+  _deleteRows(ciSheet, ciRows);
+  krSheet.deleteRow(krRowIdx);
+  SpreadsheetApp.flush();
+  return { success: true };
+}
+
+function deleteCheckIn(ciId) {
+  _checkAuth();
+  var user = getCurrentUser();
+  var ss   = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  var ciSheet    = ss.getSheetByName('CheckIns');
+  var ciData     = ciSheet.getDataRange().getValues();
+  var ciH        = ciData[0];
+  var idCol      = ciH.indexOf('id');
+  var creatorCol = ciH.indexOf('checked_in_by_email');
+  var krIdCol    = ciH.indexOf('key_result_id');
+
+  var ciRowIdx = -1;
+  var krId     = '';
+  for (var i = 1; i < ciData.length; i++) {
+    if (String(ciData[i][idCol]) === String(ciId)) {
+      if (ciData[i][creatorCol] !== user.email)
+        throw new Error('PERMISSION_DENIED|Only the creator can delete this check-in.');
+      ciRowIdx = i + 1;
+      krId     = String(ciData[i][krIdCol]);
+      break;
+    }
+  }
+  if (ciRowIdx === -1) throw new Error('Check-in not found.');
+
+  ciSheet.deleteRow(ciRowIdx);
+  _syncKRCurrentValue(ss, krId);
+  SpreadsheetApp.flush();
+  return { success: true };
+}
+
+function updateCheckIn(ciId, newValue, note, date) {
+  _checkAuth();
+  var user = getCurrentUser();
+  var ss   = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  var ciSheet    = ss.getSheetByName('CheckIns');
+  var ciData     = ciSheet.getDataRange().getValues();
+  var ciH        = ciData[0];
+  var idCol      = ciH.indexOf('id');
+  var creatorCol = ciH.indexOf('checked_in_by_email');
+  var krIdCol    = ciH.indexOf('key_result_id');
+  var valCol     = ciH.indexOf('new_value');
+  var noteCol    = ciH.indexOf('note');
+  var dateCol    = ciH.indexOf('date');
+
+  var ciRowIdx = -1;
+  var krId     = '';
+  for (var i = 1; i < ciData.length; i++) {
+    if (String(ciData[i][idCol]) === String(ciId)) {
+      if (ciData[i][creatorCol] !== user.email)
+        throw new Error('PERMISSION_DENIED|Only the creator can edit this check-in.');
+      ciRowIdx = i + 1;
+      krId     = String(ciData[i][krIdCol]);
+      break;
+    }
+  }
+  if (ciRowIdx === -1) throw new Error('Check-in not found.');
+
+  ciSheet.getRange(ciRowIdx, valCol  + 1).setValue(newValue);
+  ciSheet.getRange(ciRowIdx, noteCol + 1).setValue(note);
+  ciSheet.getRange(ciRowIdx, dateCol + 1).setValue(date);
+  _syncKRCurrentValue(ss, krId);
+  SpreadsheetApp.flush();
+  return { success: true };
+}
+
+// Recalculate a KR's current_value from its latest check-in by date
+function _syncKRCurrentValue(ss, krId) {
+  var ciSheet = ss.getSheetByName('CheckIns');
+  var ciData  = ciSheet.getDataRange().getValues();
+  var ciH     = ciData[0];
+  var ciKrCol = ciH.indexOf('key_result_id');
+  var ciValCol= ciH.indexOf('new_value');
+  var ciDateCol=ciH.indexOf('date');
+
+  var latest = null;
+  for (var i = 1; i < ciData.length; i++) {
+    if (String(ciData[i][ciKrCol]) === String(krId)) {
+      var d = String(ciData[i][ciDateCol]);
+      if (!latest || d > latest.date) latest = { date: d, value: ciData[i][ciValCol] };
+    }
+  }
+
+  var krSheet    = ss.getSheetByName('KeyResults');
+  var krData     = krSheet.getDataRange().getValues();
+  var krH        = krData[0];
+  var krIdCol    = krH.indexOf('id');
+  var krCurCol   = krH.indexOf('current_value');
+  var krStartCol = krH.indexOf('start_value');
+  var krUpdName  = krH.indexOf('updated_by_name');
+  var krUpdEmail = krH.indexOf('updated_by_email');
+  var krUpdAt    = krH.indexOf('updated_at');
+  var user       = getCurrentUser();
+
+  for (var k = 1; k < krData.length; k++) {
+    if (String(krData[k][krIdCol]) === String(krId)) {
+      var row = k + 1;
+      krSheet.getRange(row, krCurCol   + 1).setValue(latest ? latest.value : krData[k][krStartCol]);
+      krSheet.getRange(row, krUpdName  + 1).setValue(user.name);
+      krSheet.getRange(row, krUpdEmail + 1).setValue(user.email);
+      krSheet.getRange(row, krUpdAt    + 1).setValue(_nowISO());
+      break;
+    }
+  }
+}
+
+// Delete sheet rows by 1-based index, bottom-to-top to preserve indices
+function _deleteRows(sheet, rowIndices) {
+  rowIndices.sort(function(a, b) { return b - a; });
+  rowIndices.forEach(function(r) { sheet.deleteRow(r); });
+}
+
 // ── Sheet initialisation ──────────────────────────────────────────────────────
 
 function initializeSheet() {

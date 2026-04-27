@@ -37,7 +37,7 @@ var COLS = {
 };
 
 // ── Error parser ──────────────────────────────────────────────────────────────
-var KNOWN_ERROR_TYPES = ['NOT_INITIALIZED', 'SCHEMA_ERROR'];
+var KNOWN_ERROR_TYPES = ['NOT_INITIALIZED', 'SCHEMA_ERROR', 'PERMISSION_DENIED'];
 
 function parseServerError(e) {
   var raw  = (e && e.message) ? e.message : String(e);
@@ -70,7 +70,8 @@ document.addEventListener('alpine:init', function() {
     selectedObjectiveId: null,
     expandedKRId:        null,
 
-    modal: { type: null, data: {}, saving: false, error: '' },
+    modal:   { type: null, data: {}, saving: false, error: '' },
+    confirm: { show: false, title: '', message: '', action: null, saving: false },
 
     toast:       null,
     _toastTimer: null,
@@ -459,6 +460,130 @@ document.addEventListener('alpine:init', function() {
           Object.assign(krInState, prevAudit);
         }
         this._toast('Check-in failed: ' + e.message, 'error');
+      }
+    },
+
+    // ── Confirmation dialog ───────────────────────────────────────────────────
+    _askConfirm(title, message, action) {
+      this.confirm = { show: true, title: title, message: message, action: action, saving: false };
+    },
+    _confirmCancel() {
+      this.confirm = { show: false, title: '', message: '', action: null, saving: false };
+    },
+    async _confirmOk() {
+      if (this.confirm.action) {
+        this.confirm.saving = true;
+        await this.confirm.action();
+      }
+    },
+
+    // ── Delete objective ──────────────────────────────────────────────────────
+    deleteObjective(obj) {
+      var self = this;
+      this._askConfirm(
+        'Delete Objective',
+        '"' + obj.title + '" and all its Key Results and check-ins will be permanently deleted. This cannot be undone.',
+        async function() {
+          try {
+            await call('deleteObjective', obj.id);
+            var krIds = self.keyResults
+              .filter(function(kr) { return kr.objective_id === obj.id; })
+              .map(function(kr) { return kr.id; });
+            self.checkIns   = self.checkIns.filter(function(ci) { return krIds.indexOf(ci.key_result_id) === -1; });
+            self.keyResults = self.keyResults.filter(function(kr) { return kr.objective_id !== obj.id; });
+            self.objectives = self.objectives.filter(function(o) { return o.id !== obj.id; });
+            self._confirmCancel();
+            self.backToList();
+            self._toast('Objective deleted.', 'success');
+          } catch (e) {
+            self.confirm.saving = false;
+            self._toast(parseServerError(e).message, 'error');
+          }
+        }
+      );
+    },
+
+    // ── Delete KR ─────────────────────────────────────────────────────────────
+    deleteKR(kr) {
+      var self = this;
+      this._askConfirm(
+        'Delete Key Result',
+        '"' + kr.title + '" and all its check-ins will be permanently deleted.',
+        async function() {
+          try {
+            await call('deleteKR', kr.id);
+            self.checkIns   = self.checkIns.filter(function(ci) { return ci.key_result_id !== kr.id; });
+            self.keyResults = self.keyResults.filter(function(r) { return r.id !== kr.id; });
+            self._confirmCancel();
+            self._toast('Key Result deleted.', 'success');
+          } catch (e) {
+            self.confirm.saving = false;
+            self._toast(parseServerError(e).message, 'error');
+          }
+        }
+      );
+    },
+
+    // ── Delete check-in ───────────────────────────────────────────────────────
+    deleteCheckIn(ci, kr) {
+      var self = this;
+      this._askConfirm(
+        'Delete Check-in',
+        'This check-in will be permanently deleted.',
+        async function() {
+          try {
+            await call('deleteCheckIn', ci.id);
+            self.checkIns = self.checkIns.filter(function(c) { return c.id !== ci.id; });
+            // Update KR current_value to latest remaining check-in
+            var krInState = self.keyResults.find(function(r) { return r.id === kr.id; });
+            if (krInState) {
+              var remaining = self.krCheckIns(krInState);
+              krInState.current_value = remaining.length > 0
+                ? remaining[0].new_value
+                : krInState.start_value;
+            }
+            self._confirmCancel();
+            self._toast('Check-in deleted.', 'success');
+          } catch (e) {
+            self.confirm.saving = false;
+            self._toast(parseServerError(e).message, 'error');
+          }
+        }
+      );
+    },
+
+    // ── Edit check-in ─────────────────────────────────────────────────────────
+    openEditCheckInModal(ci, kr) {
+      this.modal = { type: 'editCheckIn', saving: false, error: '', data: {
+        _ci: ci, _kr: kr,
+        new_value: ci.new_value,
+        note:      ci.note || '',
+        date:      ci.date,
+      }};
+    },
+
+    async saveEditCheckIn() {
+      var d  = this.modal.data;
+      var ci = d._ci;
+      var kr = d._kr;
+
+      this.modal.saving = true;
+      this.modal.error  = '';
+
+      var prev = { new_value: ci.new_value, note: ci.note, date: ci.date };
+      ci.new_value = Number(d.new_value);
+      ci.note      = d.note.trim();
+      ci.date      = d.date;
+      this._closeModal();
+
+      try {
+        await call('updateCheckIn', ci.id, Number(d.new_value), d.note.trim(), d.date);
+        // Sync KR current_value from latest check-in
+        await this._silentReload();
+        this._toast('Check-in updated.', 'success');
+      } catch (e) {
+        Object.assign(ci, prev);
+        this._toast('Could not update: ' + e.message, 'error');
       }
     },
 
