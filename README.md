@@ -1,4 +1,4 @@
-# okr-sheets
+# OKR Sheets
 
 OKR tracker built on Google Sheets — no backend, no database, no hosting costs. Google Sheets is the database. Google Apps Script is the server. Your team's Google account is the login.
 
