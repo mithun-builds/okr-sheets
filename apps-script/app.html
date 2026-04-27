@@ -309,7 +309,7 @@ document.addEventListener('alpine:init', function() {
     openNewKRModal(objectiveId) {
       this.modal = { type: 'newKR', saving: false, error: '', data: {
         objective_id: objectiveId, title: '', metric_type: 'number',
-        start_value: 0, target_value: 100, current_value: 0, unit: '', weight: 1,
+        start_value: 0, target_value: 100, unit: '', weight: 1,
       }};
     },
 
@@ -379,7 +379,7 @@ document.addEventListener('alpine:init', function() {
         id, objective_id: d.objective_id, title: d.title.trim(),
         metric_type: d.metric_type,
         start_value: Number(d.start_value), target_value: Number(d.target_value),
-        current_value: Number(d.current_value), unit: d.unit,
+        current_value: Number(d.start_value), unit: d.unit,
         weight: Number(d.weight) || 1,
         created_by_name: this.user.name, created_by_email: this.user.email, created_at: now,
         updated_by_name: this.user.name, updated_by_email: this.user.email, updated_at: now,
@@ -391,28 +391,11 @@ document.addEventListener('alpine:init', function() {
 
       try {
         await call('appendRow', 'KeyResults', kr);
-
-        // Auto-create first check-in if current value differs from start
-        if (Number(d.current_value) !== Number(d.start_value)) {
-          var ci = {
-            id: genId('ci'), key_result_id: id,
-            date: new Date().toISOString().split('T')[0],
-            new_value: Number(d.current_value),
-            note: 'Initial value',
-            checked_in_by_name:  this.user.name,
-            checked_in_by_email: this.user.email,
-            created_at: now,
-          };
-          this.checkIns.push(ci);
-          await call('appendRow', 'CheckIns', ci);
-        }
-
         this._toast('Key Result added.', 'success');
         await this._silentReload();
       } catch (e) {
         var id_ = id;
         this.keyResults = this.keyResults.filter(function(r) { return r.id !== id_; });
-        this.checkIns   = this.checkIns.filter(function(c) { return c.key_result_id !== id_; });
         this._toast('Could not save KR: ' + e.message, 'error');
       }
     },
