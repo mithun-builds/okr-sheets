@@ -132,39 +132,43 @@
     <!-- ──────────────── OBJECTIVES LIST -->
     <main x-show="view === 'objectives'" class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
 
-      <!-- Filters row -->
-      <div class="flex flex-wrap items-center gap-3 mb-5">
-        <select x-model="filters.team"
-          class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
-          <option value="">All teams</option>
-          <template x-for="t in filterTeams" :key="t"><option :value="t" x-text="t"></option></template>
-        </select>
-        <select x-model="filters.owner"
-          class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
-          <option value="">All owners</option>
-          <template x-for="o in filterOwners" :key="o.email"><option :value="o.email" x-text="o.name"></option></template>
-        </select>
-        <button x-show="filters.team || filters.owner"
-          @click="filters = { team: '', owner: '' }"
-          class="text-xs text-slate-400 hover:text-slate-600">Clear filters</button>
+      <!-- Filters + actions -->
+      <div class="mb-5">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          <select x-model="filters.team"
+            class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">All teams</option>
+            <template x-for="t in filterTeams" :key="t"><option :value="t" x-text="t"></option></template>
+          </select>
+          <select x-model="filters.owner"
+            class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">All owners</option>
+            <template x-for="o in filterOwners" :key="o.email"><option :value="o.email" x-text="o.name"></option></template>
+          </select>
+          <button x-show="filters.team || filters.owner"
+            @click="filters = { team: '', owner: '' }"
+            class="text-xs text-slate-400 hover:text-slate-600">Clear</button>
 
-        <div class="flex-1"></div>
+          <div class="flex-1"></div>
 
-        <button @click="exportCSV()"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-          Export CSV
-        </button>
-        <button @click="openNewObjectiveModal()"
-          class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-white text-sm font-medium transition shadow-sm"
-          style="background:#D92227"
-          onmouseover="this.style.background='#b01d21'"
-          onmouseout="this.style.background='#D92227'">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M12 4v16m8-8H4"/></svg>
-          New Objective
-        </button>
+          <button @click="exportCSV()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <span class="hidden sm:inline">Export CSV</span>
+            <span class="sm:hidden">CSV</span>
+          </button>
+          <button @click="openNewObjectiveModal()"
+            class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-white text-sm font-medium transition shadow-sm"
+            style="background:#D92227"
+            onmouseover="this.style.background='#b01d21'"
+            onmouseout="this.style.background='#D92227'">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M12 4v16m8-8H4"/></svg>
+            <span class="hidden sm:inline">New Objective</span>
+            <span class="sm:hidden">New</span>
+          </button>
+        </div>
       </div>
 
       <!-- Empty state -->
@@ -234,58 +238,52 @@
       <template x-if="selectedObjective">
         <div>
           <!-- Header card -->
-          <div class="bg-white rounded-xl border border-slate-200 p-6 mb-4">
-            <div class="flex items-start gap-4">
-              <div class="flex-1 min-w-0">
+          <div class="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 mb-4">
 
-                <!-- Title + Edit / Delete buttons -->
-                <div class="flex items-start justify-between gap-3 mb-3">
-                  <h1 class="text-xl font-bold text-slate-800 leading-snug" x-text="selectedObjective.title"></h1>
-                  <div class="flex items-center gap-2 shrink-0">
-                    <button @click="openEditObjectiveModal(selectedObjective)"
-                      class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
-                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                      </svg>
-                      Edit
-                    </button>
-                    <button x-show="user?.email === selectedObjective?.created_by_email || user?.email === selectedObjective?.owner_email"
-                      @click="deleteObjective(selectedObjective)"
-                      class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs text-rose-500 hover:bg-rose-50 transition">
-                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                      </svg>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Meta pills -->
-                <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500 mb-4">
-                  <span class="text-xs text-slate-400">
-                    <span x-text="selectedObjective.owner_name"></span>
-                    <span x-show="selectedObjective.team"> · <span x-text="selectedObjective.team"></span></span>
-                  </span>
-                  <template x-if="selectedObjective.eta">
-                    <span class="text-xs"
-                      :class="isOverdue(selectedObjective.eta) ? 'text-rose-500 font-medium' : 'text-slate-400'"
-                      x-text="(isOverdue(selectedObjective.eta) ? 'Overdue · ' : 'Due ') + formatDate(selectedObjective.eta)"></span>
-                  </template>
-                </div>
-
-                <!-- Description -->
-                <p class="text-sm"
-                  :class="selectedObjective.description ? 'text-slate-500' : 'italic text-slate-300'"
-                  x-text="selectedObjective.description || 'No description — click Edit to add one.'"></p>
-              </div>
-
-              <!-- Progress -->
-              <div class="shrink-0 text-center">
-                <div class="text-3xl font-bold"
+            <!-- Title + progress % always side-by-side -->
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <h1 class="text-lg sm:text-xl font-bold text-slate-800 leading-snug flex-1"
+                x-text="selectedObjective.title"></h1>
+              <div class="shrink-0 text-right">
+                <div class="text-2xl sm:text-3xl font-bold"
                   :class="objectiveProgress(selectedObjective) >= 70 ? 'text-emerald-600' : objectiveProgress(selectedObjective) >= 40 ? 'text-amber-500' : 'text-rose-500'"
                   x-text="Math.round(objectiveProgress(selectedObjective)) + '%'"></div>
                 <div class="text-xs text-slate-400">progress</div>
               </div>
+            </div>
+
+            <!-- Owner · Team · ETA -->
+            <div class="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-slate-500 mb-3">
+              <span x-text="selectedObjective.owner_name"></span>
+              <span x-show="selectedObjective.team"> · <span x-text="selectedObjective.team"></span></span>
+              <template x-if="selectedObjective.eta">
+                <span :class="isOverdue(selectedObjective.eta) ? 'text-rose-500 font-medium' : ''"
+                  x-text="(isOverdue(selectedObjective.eta) ? ' · Overdue · ' : ' · Due ') + formatDate(selectedObjective.eta)"></span>
+              </template>
+            </div>
+
+            <!-- Description -->
+            <p class="text-sm mb-4"
+              :class="selectedObjective.description ? 'text-slate-500' : 'italic text-slate-300'"
+              x-text="selectedObjective.description || 'No description — click Edit to add one.'"></p>
+
+            <!-- Edit / Delete -->
+            <div class="flex items-center gap-2">
+              <button @click="openEditObjectiveModal(selectedObjective)"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+                Edit
+              </button>
+              <button x-show="user?.email === selectedObjective?.created_by_email || user?.email === selectedObjective?.owner_email"
+                @click="deleteObjective(selectedObjective)"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-xs text-rose-500 hover:bg-rose-50 transition">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                Delete
+              </button>
             </div>
 
             <p class="text-xs text-slate-400 mt-4 border-t border-slate-100 pt-3">
@@ -351,9 +349,9 @@
                 <!-- KR expanded: check-in history -->
                 <div x-show="expandedKRId === kr.id" x-transition
                   class="border-t border-slate-100 bg-slate-50 px-5 py-4">
-                  <div class="flex items-center justify-between mb-3">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
                     <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Check-in history</p>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                       <button @click.stop="openEditKRModal(kr)"
                         class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-500 hover:bg-slate-50 transition">
                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
