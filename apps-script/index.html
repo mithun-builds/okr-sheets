@@ -192,7 +192,7 @@
                 x-text="obj.title"></h3>
               <div class="flex flex-col items-end gap-1 shrink-0">
                 <span class="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
-                  :class="statusColor(obj.status)" x-text="obj.status?.replace('-', ' ')"></span>
+                  :class="statusColor(objectiveStatus(obj))" x-text="objectiveStatus(obj).replace('-', ' ')"></span>
                 <span x-show="objectiveKRs(obj).length === 0"
                   class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠ No KRs yet</span>
               </div>
@@ -273,8 +273,8 @@
                 <!-- Meta pills -->
                 <div class="flex flex-wrap items-center gap-2 text-sm text-slate-500 mb-4">
                   <span class="text-xs font-medium px-2 py-0.5 rounded-full"
-                    :class="statusColor(selectedObjective.status)"
-                    x-text="selectedObjective.status?.replace('-', ' ')"></span>
+                    :class="statusColor(objectiveStatus(selectedObjective))"
+                    x-text="objectiveStatus(selectedObjective).replace('-', ' ')"></span>
                   <span class="text-xs text-slate-400">
                     <span x-text="selectedObjective.owner_name"></span>
                     <span x-show="selectedObjective.team"> · <span x-text="selectedObjective.team"></span></span>
@@ -342,6 +342,9 @@
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-2">
                         <h4 class="text-sm font-medium text-slate-700" x-text="kr.title"></h4>
+                        <span class="text-xs font-medium px-1.5 py-0.5 rounded-full"
+                          :class="statusColor(kr.status || 'on-track')"
+                          x-text="(kr.status || 'on-track').replace('-', ' ')"></span>
                         <span class="text-xs text-slate-400">wt <span x-text="kr.weight"></span></span>
                       </div>
                       <div class="flex items-center gap-3">
@@ -477,30 +480,15 @@
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Team</label>
-                <input x-model="modal.data.team" type="text" list="team-list"
+                <input x-model="modal.data.team" type="text" placeholder="e.g. Revenue, CX, Operations"
                   class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                <datalist id="team-list">
-                  <template x-for="t in filterTeams" :key="t"><option :value="t"></option></template>
-                </datalist>
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">ETA (target date)</label>
-                <input x-model="modal.data.eta" type="date"
-                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-                <select x-model="modal.data.status"
-                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="on-track">On track</option>
-                  <option value="at-risk">At risk</option>
-                  <option value="off-track">Off track</option>
-                  <option value="done">Done</option>
-                </select>
-              </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">ETA (target date)</label>
+              <input x-model="modal.data.eta" type="date"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
             </div>
 
             <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
@@ -568,12 +556,24 @@
               </div>
             </div>
 
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">
-                Weight <span class="font-normal text-slate-400">(relative importance among KRs)</span>
-              </label>
-              <input x-model.number="modal.data.weight" type="number" min="0.1" step="0.5"
-                class="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                  Weight <span class="font-normal text-slate-400">(importance)</span>
+                </label>
+                <input x-model.number="modal.data.weight" type="number" min="0.1" step="0.5"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                <select x-model="modal.data.status"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="on-track">On track</option>
+                  <option value="at-risk">At risk</option>
+                  <option value="off-track">Off track</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
             </div>
 
             <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
@@ -620,30 +620,15 @@
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 mb-1">Team</label>
-                <input x-model="modal.data.team" type="text" list="edit-team-list"
+                <input x-model="modal.data.team" type="text" placeholder="e.g. Revenue, CX, Operations"
                   class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                <datalist id="edit-team-list">
-                  <template x-for="t in filterTeams" :key="t"><option :value="t"></option></template>
-                </datalist>
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">ETA (target date)</label>
-                <input x-model="modal.data.eta" type="date"
-                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-                <select x-model="modal.data.status"
-                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="on-track">On track</option>
-                  <option value="at-risk">At risk</option>
-                  <option value="off-track">Off track</option>
-                  <option value="done">Done</option>
-                </select>
-              </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">ETA (target date)</label>
+              <input x-model="modal.data.eta" type="date"
+                class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
             </div>
 
             <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>
@@ -711,12 +696,24 @@
               </div>
             </div>
 
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">
-                Weight <span class="font-normal text-slate-400">(relative importance among KRs)</span>
-              </label>
-              <input x-model.number="modal.data.weight" type="number" min="0.1" step="0.5"
-                class="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">
+                  Weight <span class="font-normal text-slate-400">(importance)</span>
+                </label>
+                <input x-model.number="modal.data.weight" type="number" min="0.1" step="0.5"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
+                <select x-model="modal.data.status"
+                  class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  <option value="on-track">On track</option>
+                  <option value="at-risk">At risk</option>
+                  <option value="off-track">Off track</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
             </div>
 
             <p x-show="modal.error" x-text="modal.error" class="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2"></p>

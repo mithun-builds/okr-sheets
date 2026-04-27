@@ -23,13 +23,13 @@ var SCHEMA_VERSION  = '1';
 var COLS = {
   Objectives: [
     'id','title','description','owner_name','owner_email','team','eta',
-    'status','display_order',
+    'display_order',
     'created_by_name','created_by_email','created_at',
     'updated_by_name','updated_by_email','updated_at',
   ],
   KeyResults: [
     'id','objective_id','title','metric_type',
-    'start_value','target_value','current_value','unit','weight',
+    'start_value','target_value','current_value','unit','weight','status',
     'created_by_name','created_by_email','created_at',
     'updated_by_name','updated_by_email','updated_at',
   ],
@@ -572,19 +572,19 @@ function _writeSeedData(ss, user) {
     { title: 'Grow core market revenue 30% this quarter',
       description: 'Drive higher throughput and conversion in our primary channel.',
       owner_name: user.name, owner_email: user.email,
-      team: 'Revenue', eta: '2026-06-30', status: 'on-track' },
+      team: 'Revenue', eta: '2026-06-30' },
     { title: 'Launch 2 new product lines',
       description: 'Enter adjacent segments with distinct SKUs and GTM plans.',
       owner_name: 'Priya Nair', owner_email: 'priya.n@' + domain,
-      team: 'Product', eta: '2026-06-30', status: 'at-risk' },
+      team: 'Product', eta: '2026-06-30' },
     { title: 'Reduce average delivery cycle time by 35%',
       description: 'Operational excellence to improve NPS and reduce cost-to-serve.',
       owner_name: 'Arjun Mehta', owner_email: 'arjun.m@' + domain,
-      team: 'Operations', eta: '2026-06-30', status: 'on-track' },
+      team: 'Operations', eta: '2026-06-30' },
     { title: 'Raise customer NPS to 65',
       description: 'Customer delight as a sustainable growth driver.',
       owner_name: 'Sneha Kapoor', owner_email: 'sneha.k@' + domain,
-      team: 'CX', eta: '2026-06-30', status: 'off-track' },
+      team: 'CX', eta: '2026-06-30' },
   ];
 
   var objSheet = ss.getSheetByName('Objectives');
@@ -599,16 +599,16 @@ function _writeSeedData(ss, user) {
   }
 
   var krSeeds = [
-    { objIdx: 0, title: 'Active revenue-generating units/month', metric_type: 'number',     start_value: 8,  target_value: 15,  current_value: 11, unit: 'units',  weight: 1 },
-    { objIdx: 0, title: 'Conversion rate (lead → close)',        metric_type: 'percentage', start_value: 22, target_value: 30,  current_value: 26, unit: '%',      weight: 2 },
-    { objIdx: 0, title: 'Repeat / referral customer ratio',      metric_type: 'percentage', start_value: 5,  target_value: 12,  current_value: 7,  unit: '%',      weight: 1 },
-    { objIdx: 1, title: 'Line A GTM fully launched',             metric_type: 'boolean',    start_value: 0,  target_value: 1,   current_value: 1,  unit: '',       weight: 1 },
-    { objIdx: 1, title: 'Line B SKUs live in catalogue',         metric_type: 'boolean',    start_value: 0,  target_value: 1,   current_value: 0,  unit: '',       weight: 1 },
-    { objIdx: 1, title: 'Orders booked across new lines',        metric_type: 'number',     start_value: 0,  target_value: 100, current_value: 34, unit: 'orders', weight: 2 },
-    { objIdx: 2, title: 'Median delivery TAT',                   metric_type: 'number',     start_value: 32, target_value: 21,  current_value: 27, unit: 'days',   weight: 2 },
-    { objIdx: 2, title: '% projects delivered on schedule',      metric_type: 'percentage', start_value: 60, target_value: 85,  current_value: 72, unit: '%',      weight: 1 },
-    { objIdx: 3, title: 'Post-delivery NPS score',               metric_type: 'number',     start_value: 52, target_value: 65,  current_value: 55, unit: 'NPS',    weight: 2 },
-    { objIdx: 3, title: 'Survey response rate',                  metric_type: 'percentage', start_value: 30, target_value: 60,  current_value: 38, unit: '%',      weight: 1 },
+    { objIdx: 0, title: 'Active revenue-generating units/month', metric_type: 'number',     start_value: 8,  target_value: 15,  current_value: 11, unit: 'units',  weight: 1, status: 'on-track'  },
+    { objIdx: 0, title: 'Conversion rate (lead → close)',        metric_type: 'percentage', start_value: 22, target_value: 30,  current_value: 26, unit: '%',      weight: 2, status: 'on-track'  },
+    { objIdx: 0, title: 'Repeat / referral customer ratio',      metric_type: 'percentage', start_value: 5,  target_value: 12,  current_value: 7,  unit: '%',      weight: 1, status: 'at-risk'   },
+    { objIdx: 1, title: 'Line A GTM fully launched',             metric_type: 'boolean',    start_value: 0,  target_value: 1,   current_value: 1,  unit: '',       weight: 1, status: 'done'      },
+    { objIdx: 1, title: 'Line B SKUs live in catalogue',         metric_type: 'boolean',    start_value: 0,  target_value: 1,   current_value: 0,  unit: '',       weight: 1, status: 'at-risk'   },
+    { objIdx: 1, title: 'Orders booked across new lines',        metric_type: 'number',     start_value: 0,  target_value: 100, current_value: 34, unit: 'orders', weight: 2, status: 'at-risk'   },
+    { objIdx: 2, title: 'Median delivery TAT',                   metric_type: 'number',     start_value: 32, target_value: 21,  current_value: 27, unit: 'days',   weight: 2, status: 'on-track'  },
+    { objIdx: 2, title: '% projects delivered on schedule',      metric_type: 'percentage', start_value: 60, target_value: 85,  current_value: 72, unit: '%',      weight: 1, status: 'on-track'  },
+    { objIdx: 3, title: 'Post-delivery NPS score',               metric_type: 'number',     start_value: 52, target_value: 65,  current_value: 55, unit: 'NPS',    weight: 2, status: 'off-track' },
+    { objIdx: 3, title: 'Survey response rate',                  metric_type: 'percentage', start_value: 30, target_value: 60,  current_value: 38, unit: '%',      weight: 1, status: 'at-risk'   },
   ];
 
   var krSheet = ss.getSheetByName('KeyResults');

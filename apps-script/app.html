@@ -124,7 +124,7 @@ document.addEventListener('alpine:init', function() {
       return this.objectives.filter(function(obj) {
         if (self.filters.team   && obj.team        !== self.filters.team)   return false;
         if (self.filters.owner  && obj.owner_email !== self.filters.owner)  return false;
-        if (self.filters.status && obj.status      !== self.filters.status) return false;
+        if (self.filters.status && self.objectiveStatus(obj) !== self.filters.status) return false;
         return true;
       }).sort(function(a, b) { return (a.display_order || 0) - (b.display_order || 0); });
     },
@@ -142,6 +142,17 @@ document.addEventListener('alpine:init', function() {
       var map = new Map();
       this.objectives.forEach(function(o) { if (o.owner_email) map.set(o.owner_email, o.owner_name); });
       return [...map.entries()].map(function(e) { return { email: e[0], name: e[1] }; });
+    },
+
+    // ── Status (derived from KRs, bottom-up) ─────────────────────────────────
+    objectiveStatus(obj) {
+      var krs = this.objectiveKRs(obj);
+      if (!krs.length) return 'on-track';
+      var statuses = krs.map(function(kr) { return kr.status || 'on-track'; });
+      if (statuses.indexOf('off-track') !== -1) return 'off-track';
+      if (statuses.indexOf('at-risk')   !== -1) return 'at-risk';
+      if (statuses.every(function(s) { return s === 'done'; })) return 'done';
+      return 'on-track';
     },
 
     // ── Progress ──────────────────────────────────────────────────────────────
@@ -214,7 +225,6 @@ document.addEventListener('alpine:init', function() {
         owner_name:  obj.owner_name,
         team:        obj.team || '',
         eta:         obj.eta  || '',
-        status:      obj.status,
       }};
     },
 
@@ -229,7 +239,7 @@ document.addEventListener('alpine:init', function() {
       var prev = {
         title: obj.title, description: obj.description,
         owner_name: obj.owner_name, team: obj.team,
-        eta: obj.eta, status: obj.status,
+        eta: obj.eta,
         updated_by_name: obj.updated_by_name,
         updated_by_email: obj.updated_by_email,
         updated_at: obj.updated_at,
@@ -240,7 +250,6 @@ document.addEventListener('alpine:init', function() {
       obj.owner_name          = d.owner_name;
       obj.team                = d.team;
       obj.eta                 = d.eta;
-      obj.status              = d.status;
       obj.updated_by_name     = this.user.name;
       obj.updated_by_email    = this.user.email;
       obj.updated_at          = nowISO();
@@ -265,8 +274,9 @@ document.addEventListener('alpine:init', function() {
         start_value:   kr.start_value,
         target_value:  kr.target_value,
         current_value: kr.current_value,
-        unit:          kr.unit  || '',
+        unit:          kr.unit   || '',
         weight:        kr.weight,
+        status:        kr.status || 'on-track',
       }};
     },
 
@@ -282,6 +292,7 @@ document.addEventListener('alpine:init', function() {
         title: kr.title, metric_type: kr.metric_type,
         start_value: kr.start_value, target_value: kr.target_value,
         current_value: kr.current_value, unit: kr.unit, weight: kr.weight,
+        status: kr.status,
         updated_by_name: kr.updated_by_name,
         updated_by_email: kr.updated_by_email,
         updated_at: kr.updated_at,
@@ -294,6 +305,7 @@ document.addEventListener('alpine:init', function() {
       kr.current_value = Number(d.current_value);
       kr.unit          = d.unit;
       kr.weight        = Number(d.weight) || 1;
+      kr.status        = d.status || 'on-track';
       kr.updated_by_name  = this.user.name;
       kr.updated_by_email = this.user.email;
       kr.updated_at       = nowISO();
@@ -314,7 +326,7 @@ document.addEventListener('alpine:init', function() {
       this.modal = { type: 'newObjective', saving: false, error: '', data: {
         title: '', description: '',
         owner_name: this.user.name, owner_email: this.user.email,
-        team: '', eta: '', status: 'on-track',
+        team: '', eta: '',
       }};
     },
 
@@ -322,6 +334,7 @@ document.addEventListener('alpine:init', function() {
       this.modal = { type: 'newKR', saving: false, error: '', data: {
         objective_id: objectiveId, title: '', metric_type: 'number',
         start_value: 0, target_value: 100, current_value: 0, unit: '', weight: 1,
+        status: 'on-track',
       }};
     },
 
@@ -356,7 +369,7 @@ document.addEventListener('alpine:init', function() {
       var obj = {
         id, title: d.title.trim(), description: d.description.trim(),
         owner_name: d.owner_name, owner_email: d.owner_email,
-        team: d.team, eta: d.eta, status: d.status,
+        team: d.team, eta: d.eta,
         display_order: this.objectives.length + 1,
         created_by_name: this.user.name, created_by_email: this.user.email, created_at: now,
         updated_by_name: this.user.name, updated_by_email: this.user.email, updated_at: now,
@@ -392,7 +405,7 @@ document.addEventListener('alpine:init', function() {
         metric_type: d.metric_type,
         start_value: Number(d.start_value), target_value: Number(d.target_value),
         current_value: Number(d.current_value), unit: d.unit,
-        weight: Number(d.weight) || 1,
+        weight: Number(d.weight) || 1, status: d.status || 'on-track',
         created_by_name: this.user.name, created_by_email: this.user.email, created_at: now,
         updated_by_name: this.user.name, updated_by_email: this.user.email, updated_at: now,
         _rowIndex: null,
