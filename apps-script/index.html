@@ -538,6 +538,18 @@
               </div>
             </div>
 
+            <div x-show="modal.data.metric_type === 'boolean'">
+              <label class="block text-xs font-medium text-slate-600 mb-2">Current value</label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
+                  <input type="radio" x-model.number="modal.data.current_value" :value="1" class="accent-red-600" /> Done ✓
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
+                  <input type="radio" x-model.number="modal.data.current_value" :value="0" class="accent-red-600" /> Not yet
+                </label>
+              </div>
+            </div>
+
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">
                 Weight <span class="font-normal text-slate-400">(relative importance among KRs)</span>
@@ -663,6 +675,18 @@
                 <label class="block text-xs font-medium text-slate-600 mb-1">Current</label>
                 <input x-model.number="modal.data.current_value" type="number"
                   class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
+
+            <div x-show="modal.data.metric_type === 'boolean'">
+              <label class="block text-xs font-medium text-slate-600 mb-2">Current value</label>
+              <div class="flex gap-4">
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
+                  <input type="radio" x-model.number="modal.data.current_value" :value="1" class="accent-red-600" /> Done ✓
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
+                  <input type="radio" x-model.number="modal.data.current_value" :value="0" class="accent-red-600" /> Not yet
+                </label>
               </div>
             </div>
 
