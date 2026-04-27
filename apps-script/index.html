@@ -340,7 +340,7 @@
                       </div>
                     </div>
                     <div class="text-right shrink-0">
-                      <div class="text-sm font-semibold text-slate-800" x-text="formatValue(kr, kr.current_value)"></div>
+                      <div class="text-sm font-semibold text-slate-800" x-text="formatValue(kr, krCheckIns(kr).length ? kr.current_value : kr.start_value)"></div>
                       <div x-show="kr.metric_type !== 'boolean'" class="text-xs text-slate-400">of <span x-text="formatValue(kr, kr.target_value)"></span></div>
                     </div>
                   </div>

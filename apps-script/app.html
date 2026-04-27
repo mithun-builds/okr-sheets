@@ -146,6 +146,7 @@ document.addEventListener('alpine:init', function() {
     // ── Progress ──────────────────────────────────────────────────────────────
     krProgress(kr) {
       if (!kr) return 0;
+      if (this.krCheckIns(kr).length === 0) return 0;
       if (kr.metric_type === 'boolean') return Number(kr.current_value) ? 100 : 0;
       var start  = Number(kr.start_value  || 0);
       var target = Number(kr.target_value || 0);
