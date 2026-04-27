@@ -1,6 +1,6 @@
-# 10xGoals — OKR Tracker on Google Sheets
+# okr-sheets
 
-A lightweight OKR tracker for teams of 10–100 people. No backend. No database. No hosting costs. Google Sheets is the database. Google Apps Script is the server. Your team's Google account is the login.
+OKR tracker built on Google Sheets — no backend, no database, no hosting costs. Google Sheets is the database. Google Apps Script is the server. Your team's Google account is the login.
 
 **Deploy in ~10 minutes. Share a URL. Done.**
 
@@ -10,16 +10,15 @@ A lightweight OKR tracker for teams of 10–100 people. No backend. No database.
 
 ### Objectives
 - Create objectives with title, description, owner, team, and a target date (ETA)
-- Set status: **On track · At risk · Off track · Done**
 - Edit any field at any time via a clean modal
 - Progress auto-calculated from Key Results — no manual entry needed
+- Filter by **Team** or **Owner**
 
 ### Key Results
 - Add multiple KRs per objective
 - Three metric types: **Number** (e.g. 42 studios), **Percentage** (e.g. 68%), **Boolean** (done / not done)
-- Set start, target, and current value — progress bar updates automatically
 - Weighted KRs — mark some KRs as more important than others
-- Edit KR details at any time
+- KR starts at 0% — progress only moves when a check-in is logged
 
 ### Check-ins
 - Log a new value against any KR on any date
@@ -27,8 +26,9 @@ A lightweight OKR tracker for teams of 10–100 people. No backend. No database.
 - Check-in history shown per KR — last 5 entries with dates and author
 - Each check-in updates the KR's current value instantly
 
-### Team & Filters
-- Filter objectives by **Team**, **Owner**, or **Status**
+### Permissions
+- Creator or objective owner can edit and delete their own data
+- Ownership inherits down — objective owner can manage all KRs and check-ins under it
 - Every write is attributed to the signed-in user (name + email)
 - Full audit trail on every row — created by / updated by / timestamps
 
@@ -123,7 +123,7 @@ Four tabs are created automatically in your Google Sheet:
 
 | Tab | Contents |
 |---|---|
-| `Objectives` | id, title, description, owner, team, eta, status, display_order, audit fields |
+| `Objectives` | id, title, description, owner, team, eta, display_order, audit fields |
 | `KeyResults` | id, objective_id, title, metric_type, start / target / current value, unit, weight, audit fields |
 | `CheckIns` | id, key_result_id, date, new_value, note, checked_in_by, created_at |
 | `_meta` | schema_version, last_initialized_at |
