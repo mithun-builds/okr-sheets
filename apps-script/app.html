@@ -246,14 +246,15 @@ document.addEventListener('alpine:init', function() {
 
     openEditKRModal(kr) {
       this.modal = { type: 'editKR', saving: false, error: '', data: {
-        _kr:           kr,
-        title:         kr.title,
-        metric_type:   kr.metric_type,
-        start_value:   kr.start_value,
-        target_value:  kr.target_value,
-        current_value: kr.current_value,
-        unit:          kr.unit  || '',
-        weight:        kr.weight,
+        _kr:                 kr,
+        _originalMetricType: kr.metric_type,
+        _hasCheckIns:        this.krCheckIns(kr).length > 0,
+        title:               kr.title,
+        metric_type:         kr.metric_type,
+        start_value:         kr.start_value,
+        target_value:        kr.target_value,
+        unit:                kr.unit  || '',
+        weight:              kr.weight,
       }};
     },
 
@@ -268,7 +269,7 @@ document.addEventListener('alpine:init', function() {
       var prev = {
         title: kr.title, metric_type: kr.metric_type,
         start_value: kr.start_value, target_value: kr.target_value,
-        current_value: kr.current_value, unit: kr.unit, weight: kr.weight,
+        unit: kr.unit, weight: kr.weight,
         updated_by_name: kr.updated_by_name,
         updated_by_email: kr.updated_by_email,
         updated_at: kr.updated_at,
@@ -278,7 +279,7 @@ document.addEventListener('alpine:init', function() {
       kr.metric_type   = d.metric_type;
       kr.start_value   = Number(d.start_value);
       kr.target_value  = Number(d.target_value);
-      kr.current_value = Number(d.current_value);
+      // current_value intentionally not touched — only check-ins update it
       kr.unit          = d.unit;
       kr.weight        = Number(d.weight) || 1;
       kr.updated_by_name  = this.user.name;
@@ -390,11 +391,28 @@ document.addEventListener('alpine:init', function() {
 
       try {
         await call('appendRow', 'KeyResults', kr);
+
+        // Auto-create first check-in if current value differs from start
+        if (Number(d.current_value) !== Number(d.start_value)) {
+          var ci = {
+            id: genId('ci'), key_result_id: id,
+            date: new Date().toISOString().split('T')[0],
+            new_value: Number(d.current_value),
+            note: 'Initial value',
+            checked_in_by_name:  this.user.name,
+            checked_in_by_email: this.user.email,
+            created_at: now,
+          };
+          this.checkIns.push(ci);
+          await call('appendRow', 'CheckIns', ci);
+        }
+
         this._toast('Key Result added.', 'success');
         await this._silentReload();
       } catch (e) {
         var id_ = id;
         this.keyResults = this.keyResults.filter(function(r) { return r.id !== id_; });
+        this.checkIns   = this.checkIns.filter(function(c) { return c.key_result_id !== id_; });
         this._toast('Could not save KR: ' + e.message, 'error');
       }
     },
