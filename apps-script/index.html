@@ -327,7 +327,6 @@
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-2">
                         <h4 class="text-sm font-medium text-slate-700" x-text="kr.title"></h4>
-                        <span class="text-xs text-slate-400">wt <span x-text="kr.weight"></span></span>
                       </div>
                       <div class="flex items-center gap-3">
                         <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -340,6 +339,7 @@
                       </div>
                     </div>
                     <div class="text-right shrink-0">
+                      <div class="text-xs text-slate-400 mb-1">wt <span x-text="kr.weight"></span></div>
                       <template x-if="krCheckIns(kr).length > 0">
                         <div>
                           <div class="text-sm font-semibold text-slate-800" x-text="formatValue(kr, kr.current_value)"></div>
